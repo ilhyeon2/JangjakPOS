@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,12 +45,16 @@ fun MainScreen(navController: androidx.navigation.NavController) {
         }
         Spacer(modifier = Modifier.height(16.dp))
         
-        LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.weight(1f)) {
+        // 고정 4열 -> 적응형 그리드로 변경 (가로 길이에 맞춰 테이블 크기와 개수 자동 조절)
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 160.dp), 
+            modifier = Modifier.weight(1f)
+        ) {
             items(7) { index ->
                 val table = DataManager.tables[index]
                 val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
                 Card(
-                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(150.dp).clickable {
+                    modifier = Modifier.padding(8.dp).fillMaxWidth().aspectRatio(1.2f).clickable {
                         navController.navigate("order/${table.id}")
                     }
                 ) {
@@ -61,7 +67,7 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             }
             item {
                 Card(
-                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(150.dp).clickable {
+                    modifier = Modifier.padding(8.dp).fillMaxWidth().aspectRatio(1.2f).clickable {
                         navController.navigate("admin_login")
                     },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -102,13 +108,18 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             Button(onClick = { navController.popBackStack() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("뒤로 가기") }
         }
         
-        LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.weight(2f)) {
+        // 고정 3열 -> 적응형 그리드로 변경 (화면 비율에 맞춰 메뉴 버튼 배열 자동 조절)
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 130.dp), 
+            modifier = Modifier.weight(2f)
+        ) {
             items(DataManager.menuItems.size) { index ->
                 val menu = DataManager.menuItems[index]
                 Card(modifier = Modifier.padding(4.dp)) {
                     Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(menu.name, style = MaterialTheme.typography.bodyMedium)
                         Text("${menu.price}원", style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
                             Button(onClick = {
                                 val existing = table.orders.find { it.menuItem.name == menu.name }
@@ -117,15 +128,16 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                                     if(existing.quantity == 0) table.orders.remove(existing)
                                 }
                                 DataManager.saveTables()
-                                orders = table.orders.toList()
-                            }) { Text("-") }
+                                orders = table.orders.map { it.copy() }
+                            }, modifier = Modifier.weight(1f).padding(end = 2.dp)) { Text("-") }
+                            
                             Button(onClick = {
                                 val existing = table.orders.find { it.menuItem.name == menu.name }
                                 if (existing != null) existing.quantity++
                                 else table.orders.add(OrderItem(menu, 1))
                                 DataManager.saveTables()
-                                orders = table.orders.toList()
-                            }) { Text("+") }
+                                orders = table.orders.map { it.copy() }
+                            }, modifier = Modifier.weight(1f).padding(start = 2.dp)) { Text("+") }
                         }
                     }
                 }
@@ -143,12 +155,12 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
         Text("정산 내역", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(16.dp))
         
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(0.5f)) {
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(0.6f)) {
             items(table.orders) { order ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(order.menuItem.name)
-                    Text("x ${order.quantity}")
-                    Text("${order.menuItem.price * order.quantity}원")
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
+                    Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
+                    Text("${order.menuItem.price * order.quantity}원", style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
@@ -165,10 +177,12 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                 
                 DataManager.clearTable(tableId)
                 navController.popBackStack()
-            }, modifier = Modifier.padding(end = 16.dp)) {
+            }, modifier = Modifier.padding(end = 16.dp).height(50.dp).width(120.dp)) {
                 Text("지급완료")
             }
-            Button(onClick = onCancel) { Text("취소") }
+            Button(onClick = onCancel, modifier = Modifier.height(50.dp).width(120.dp)) { 
+                Text("취소") 
+            }
         }
     }
 }
@@ -177,8 +191,10 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
 fun AdminLoginScreen(navController: androidx.navigation.NavController) {
     var password by remember { mutableStateOf("") }
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("관리자 비밀번호를 입력하세요 (기본: 1234)")
+        Text("관리자 비밀번호를 입력하세요 (기본: 1234)", style = MaterialTheme.typography.titleLarge)
+        Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(value = password, onValueChange = { password = it })
+        Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = {
             if (password == DataManager.adminPassword) {
                 navController.navigate("admin") { popUpTo("main") }
@@ -192,8 +208,10 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
 fun AdminScreen(navController: androidx.navigation.NavController) {
     var selectedDateStr by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState()
+    
+    // 달력 스크롤 처리를 위한 상태 추가
+    val scrollState = rememberScrollState()
 
-    // 타입 모호성 에러 해결: millis.toLong()으로 명시적 변환
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -214,18 +232,25 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+            // 좌측: 달력 (세로 스크롤 추가)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 16.dp)
+                    .verticalScroll(scrollState) // 기기 화면이 작을 경우 스크롤 허용
+            ) {
                 Text("날짜 선택", style = MaterialTheme.typography.titleMedium)
                 DatePicker(
                     state = datePickerState,
                     showModeToggle = false,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                Button(onClick = { selectedDateStr = null }, modifier = Modifier.padding(top = 8.dp)) {
+                Button(onClick = { selectedDateStr = null }, modifier = Modifier.padding(top = 8.dp).fillMaxWidth()) {
                     Text("전체 내역 보기")
                 }
             }
             
+            // 우측: 정산 내역 및 매출 합계
             Column(modifier = Modifier.weight(1.2f)) {
                 val filteredReceipts = if (selectedDateStr != null) {
                     DataManager.receipts.filter { it.date.startsWith(selectedDateStr!!) }
