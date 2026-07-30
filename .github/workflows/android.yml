@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 모든 빌드 명령을 해당 하위 폴더 안에서 실행하도록 지정
     defaults:
       run:
         working-directory: ./JangjakPOS_source_Final
@@ -24,20 +23,20 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Create missing Gradle files
+    - name: Create missing properties
       run: |
         echo "android.useAndroidX=true" > gradle.properties
         echo "android.nonTransitiveRClass=true" >> gradle.properties
-        gradle wrapper --gradle-version 8.3
 
+    # 버전에 맞는 Gradle(8.3)을 강제로 지정하여 설치
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.3'
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
+    # Wrapper 대신 설치된 시스템 Gradle로 직접 빌드
     - name: Build Debug APK
-      run: ./gradlew assembleDebug
+      run: gradle assembleDebug
 
     - name: Rename APK file
       run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/JangjakPOS.apk
@@ -46,5 +45,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: JangjakPOS-debug-apk
-        # 다운로드할 파일 경로에도 폴더명을 추가하여 정확히 지정
         path: JangjakPOS_source_Final/app/build/outputs/apk/debug/JangjakPOS.apk
