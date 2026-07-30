@@ -204,7 +204,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
-    // 강제 3분할 데이터 분리
     val leftItems = table.orders.take(6)
     val centerItems = table.orders.drop(6).take(6)
     val rightItems = table.orders.drop(12) 
@@ -213,49 +212,53 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
         Text("정산 내역", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 3개의 열에 정확히 weight(1f)를 주어 비율을 완벽히 1:1:1로 쪼갭니다.
-        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        // 3구간 사이의 간격을 32dp로 확 넓혀서 명확히 구분되게 만듭니다.
+        Row(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
             
-            // 1. 좌측 영역 (LazyColumn으로 안전한 데이터 표시)
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 4.dp)) {
+            // 1. 좌측 영역
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 items(leftItems.size) { index ->
                     val order = leftItems[index]
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium)
-                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium)
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // 각 항목에 비율(weight)을 지정해 적절한 간격을 유지하며 정렬합니다.
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
+                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
                     }
                 }
             }
             
             // 2. 중앙 영역
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 4.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 items(centerItems.size) { index ->
                     val order = centerItems[index]
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium)
-                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium)
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
+                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
                     }
                 }
             }
 
-            // 3. 우측 영역 (Box 앵커 기법: 스크롤 내용과 고정 버튼을 분리하여 하단 절대 고정)
-            Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 4.dp)) {
+            // 3. 우측 영역 (바닥 버튼 고정)
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 
-                // 나머지 주문 내역은 하단 버튼 공간(140dp)을 비워두고 그 위에서만 스크롤 됨
+                // 스크롤되는 정산 내역 목록
                 LazyColumn(modifier = Modifier.fillMaxSize().padding(bottom = 140.dp)) {
                     items(rightItems.size) { index ->
                         val order = rightItems[index]
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium)
-                            Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium)
-                            Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium)
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
+                            Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
+                            Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
                         }
                     }
                 }
                 
-                // 합계 및 버튼은 화면 최하단 우측에 앵커 고정(Alignment.BottomEnd)
+                // 하단 합계 및 결제 버튼 (우측 열의 가장 하단에 완벽 고정)
                 Column(
                     modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth().background(MaterialTheme.colorScheme.background),
                     horizontalAlignment = Alignment.End
@@ -334,7 +337,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }.sumOf { it.totalAmount }
 
-    // 캘린더 팝업 (강제 500dp 높이 부여 및 스크롤 처리로 요일 겹침 완벽 차단)
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
         
@@ -354,14 +356,13 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight()
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    // 고정 높이 450dp 공간을 만들고, 달력이 그 안에서 넓게 펴지도록 강제함
                     Box(modifier = Modifier.height(450.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
                         DatePicker(
                             state = datePickerState,
                             showModeToggle = false,
                             title = { Text("날짜 선택") },
                             headline = { Text("조회할 날짜를 선택하세요") },
-                            modifier = Modifier.height(500.dp) // 달력이 절대 찌그러지지 않도록 높이 500dp 강제 주입
+                            modifier = Modifier.height(500.dp) 
                         )
                     }
                     Row(
@@ -386,10 +387,8 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             
-            // 좌측 영역 (Box 레이아웃을 통해 최하단 돌아가기 버튼 무조건 고정)
             Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
                 
-                // 매출 카드 2개는 버튼 윗 공간(90dp 여백) 안에서만 스크롤 되도록 격리
                 Column(
                     modifier = Modifier.fillMaxSize().padding(bottom = 90.dp).verticalScroll(rememberScrollState())
                 ) {
@@ -412,7 +411,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     }
                 }
                 
-                // 메인으로 돌아가기 버튼 (Box의 BottomCenter에 닻을 내려 완벽 고정)
                 Button(
                     onClick = { navController.navigate("main") { popUpTo(0) } }, 
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(60.dp)
@@ -421,7 +419,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 }
             }
             
-            // 우측 정산 내역 영역
             LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) {
                 if (dailyReceipts.isEmpty()) {
                     item { 
