@@ -1,8 +1,12 @@
 package com.example.jangjakpos.data
+
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class MenuItem(val name: String, var price: Int)
 data class OrderItem(val menuItem: MenuItem, var quantity: Int)
@@ -13,18 +17,21 @@ object DataManager {
     private lateinit var dataFile: File
     private lateinit var receiptFile: File
     private lateinit var menuFile: File
+    private lateinit var dateFile: File
     private val gson = Gson()
 
     var tables = List(7) { Table(it + 1) }
     var receipts = mutableListOf<Receipt>()
     var menuItems = mutableListOf<MenuItem>()
     var adminPassword = "1234"
+    private var lastDateStr = ""
 
     fun init(context: Context) {
         val dir = context.filesDir
         dataFile = File(dir, "tables.json")
         receiptFile = File(dir, "receipts.json")
         menuFile = File(dir, "menus.json")
+        dateFile = File(dir, "last_date.txt")
         loadData()
     }
 
@@ -52,6 +59,24 @@ object DataManager {
         if (receiptFile.exists()) {
             val type = object : TypeToken<MutableList<Receipt>>() {}.type
             receipts = gson.fromJson(receiptFile.readText(), type) ?: mutableListOf()
+        }
+        
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        if (dateFile.exists()) {
+            lastDateStr = dateFile.readText()
+            checkAndResetDaily(todayStr)
+        } else {
+            lastDateStr = todayStr
+            dateFile.writeText(lastDateStr)
+        }
+    }
+
+    fun checkAndResetDaily(todayStr: String) {
+        if (lastDateStr != todayStr) {
+            tables.forEach { it.orders.clear() }
+            saveTables()
+            lastDateStr = todayStr
+            dateFile.writeText(lastDateStr)
         }
     }
 
