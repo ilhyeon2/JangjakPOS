@@ -64,8 +64,8 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             columns = GridCells.Fixed(4), 
             modifier = Modifier.weight(1f)
         ) {
-            items(7) { index ->
-                val dummy = updateTrigger
+            // updateTrigger를 key에 포함시켜 변수 경고 없이 UI가 갱신되도록 처리
+            items(7, key = { index -> "$index-$updateTrigger" }) { index ->
                 val table = DataManager.tables[index]
                 val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
                 val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
@@ -75,15 +75,12 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                         navController.navigate("order/${table.id}")
                     }
                 ) {
-                    // 요구사항 1: 테이블 번호 아래 주문내역 표시, 총 금액 최하단 표시
                     Column(
                         modifier = Modifier.padding(16.dp).fillMaxSize(), 
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // 상단: 테이블 번호
                         Text("테이블 ${table.id}", style = MaterialTheme.typography.titleMedium)
                         
-                        // 중단: 주문 내역 리스트
                         Column(modifier = Modifier.weight(1f).padding(top = 8.dp, bottom = 8.dp)) {
                             if (table.orders.isNotEmpty()) {
                                 table.orders.forEach { order ->
@@ -95,7 +92,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                             }
                         }
                         
-                        // 하단: 총 금액
                         Text(
                             text = if (totalAmount > 0) "${numFormat.format(totalAmount)}원" else "비어있음",
                             style = MaterialTheme.typography.titleMedium,
@@ -138,9 +134,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
         Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             LazyColumn(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
-                val dummy = updateTrigger
-                
-                items(table.orders.size) { index ->
+                items(table.orders.size, key = { index -> "$index-$updateTrigger" }) { index ->
                     val order = table.orders[index]
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
@@ -196,7 +190,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
-    // 요구사항 2: 정산 내역 화면 좌/우 분할, 왼쪽 5개 출력 후 나머지 우측 출력
     val leftOrders = table.orders.take(5)
     val rightOrders = table.orders.drop(5)
     
@@ -205,7 +198,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(modifier = Modifier.weight(1f).fillMaxWidth(0.8f)) {
-            // 왼쪽 영역 (최대 5개)
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 leftOrders.forEach { order ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -215,7 +207,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                     }
                 }
             }
-            // 오른쪽 영역 (나머지)
             if (rightOrders.isNotEmpty()) {
                 Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
                     rightOrders.forEach { order ->
@@ -274,7 +265,6 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
 fun AdminScreen(navController: androidx.navigation.NavController) {
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
-    // 요구사항 3: 메인에서 진입할 때마다 현재 시간으로 달력 초기화
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     var showDatePicker by remember { mutableStateOf(false) }
     
@@ -288,7 +278,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val selectedDayStr = dayFormat.format(selectedDate)
     val selectedMonthStr = monthFormat.format(selectedDate)
 
-    // 선택된 날짜 기준의 일별, 월별 영수증 데이터 필터링
     val dailyReceipts = DataManager.receipts.filter { it.date.startsWith(selectedDayStr) }
     val monthlyReceipts = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }
 
@@ -310,11 +299,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 상단 바 (관리자 타이틀 및 우측 날짜)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("관리자 페이지", style = MaterialTheme.typography.titleMedium)
             
-            // 요구사항 3: 우측 상단 현재 날짜 명시, 클릭 시 달력 다이얼로그 호출
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { showDatePicker = true }) {
                 Text("📅 ${uiDateFormat.format(selectedDate)}", style = MaterialTheme.typography.headlineSmall, color = Color.Black)
             }
@@ -322,10 +309,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 요구사항 4: 화면을 좌/우로 분할 (좌측: 매출합계 & 버튼, 우측: 내역 스크롤)
         Row(modifier = Modifier.fillMaxSize()) {
-            
-            // 좌측 영역 (비율 0.4)
             Column(
                 modifier = Modifier
                     .weight(0.4f)
@@ -334,10 +318,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    // 월별 매출 합계
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5470)) // 어두운 푸른색 계열 (이미지 참조)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5470))
                     ) {
                         Column(modifier = Modifier.padding(24.dp)) {
                             Text("월별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
@@ -346,7 +329,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                         }
                     }
                     
-                    // 일별 매출 합계
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5470))
@@ -359,22 +341,20 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     }
                 }
 
-                // 메인으로 돌아가기 버튼
                 Button(
                     onClick = { navController.navigate("main") { popUpTo(0) } },
                     modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A68A6)) // 보라색 계열 (이미지 참조)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A68A6))
                 ) {
                     Text("메인으로 돌아가기")
                 }
             }
             
-            // 우측 영역 (비율 0.6) - 일별 매출 내역 리스트 스크롤
             LazyColumn(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
                 items(dailyReceipts) { receipt ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFE6F7)) // 연한 보라색 배경 (이미지 참조)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFE6F7))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("결제일시: ${receipt.date}", style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
