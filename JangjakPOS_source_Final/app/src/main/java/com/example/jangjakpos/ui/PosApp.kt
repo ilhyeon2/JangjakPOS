@@ -305,10 +305,10 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("관리자 페이지", style = MaterialTheme.typography.titleMedium)
-            
-            // 요구사항 3: 우측 상단 현재 날짜 명시 및 클릭 가능
+         
+            // ✅ 아래와 같이 Alignment.CenterVertically로 수정해주세요.
             Row(
-                verticalAlignment = Alignment.CenterHorizontally, 
+                verticalAlignment = Alignment.CenterVertically, 
                 modifier = Modifier.clickable { showDatePicker = true }.padding(8.dp)
             ) {
                 Text("📅 ${uiDateFormat.format(selectedDate)}", style = MaterialTheme.typography.headlineSmall, color = Color.Black)
