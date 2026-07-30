@@ -23,7 +23,6 @@ android {
         kotlinCompilerExtensionVersion = "1.5.3"
     }
 
-    // [추가된 부분] Java와 Kotlin 모두 버전을 17로 통일하여 충돌 방지
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -41,7 +40,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
+    // 아래 줄이 1.2.1 최신 버전으로 수정됨
+    implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.navigation:navigation-compose:2.7.4")
     implementation("com.google.code.gson:gson:2.10.1")
 }
