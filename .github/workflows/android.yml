@@ -1,48 +1,31 @@
-name: Android CI (APK Build)
+name: Android Build
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+
+# 1. 여기에 전체 환경 변수로 메모리 설정을 강제 주입합니다.
+env:
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8"
+  JAVA_TOOL_OPTIONS: "-Xmx4096m"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./JangjakPOS_source_Final
 
     steps:
-    - name: Checkout project
-      uses: actions/checkout@v4
-
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
+    - uses: actions/checkout@v3
+    
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: gradle
 
-    - name: Create missing properties
-      run: |
-        echo "android.useAndroidX=true" > gradle.properties
-        echo "android.nonTransitiveRClass=true" >> gradle.properties
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
-    # 버전에 맞는 Gradle(8.3)을 강제로 지정하여 설치
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: '8.3'
-
-    # Wrapper 대신 설치된 시스템 Gradle로 직접 빌드
-    - name: Build Debug APK
-      run: gradle assembleDebug
-
-    - name: Rename APK file
-      run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/JangjakPOS.apk
-
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: JangjakPOS-debug-apk
-        path: JangjakPOS_source_Final/app/build/outputs/apk/debug/JangjakPOS.apk
+    # 2. 빌드 명령어 뒤에 --no-daemon을 추가하여 백그라운드 프로세스 메모리 낭비를 막습니다.
+    - name: Build with Gradle
+      run: ./gradlew assembleDebug --no-daemon
