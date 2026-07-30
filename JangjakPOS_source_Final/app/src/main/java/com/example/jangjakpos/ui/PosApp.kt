@@ -39,10 +39,8 @@ fun MainScreen(navController: androidx.navigation.NavController) {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     var currentTime by remember { mutableStateOf(dateFormat.format(Date())) }
-    
     var updateTrigger by remember { mutableStateOf(0) }
 
-    // 1분 단위 시계 갱신 및 날짜 변경 시 테이블 자동 초기화 체크
     LaunchedEffect(Unit) {
         while (true) {
             val now = Date()
@@ -64,30 +62,35 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             columns = GridCells.Fixed(4), 
             modifier = Modifier.weight(1f)
         ) {
-            // updateTrigger를 key에 포함시켜 변수 경고 없이 UI가 갱신되도록 처리
             items(7, key = { index -> "$index-$updateTrigger" }) { index ->
                 val table = DataManager.tables[index]
                 val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
                 val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
                 
                 Card(
-                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(150.dp).clickable {
+                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(160.dp).clickable {
                         navController.navigate("order/${table.id}")
                     }
                 ) {
+                    // 요구사항 1: 테이블 번호 아래 주문내역, 총금액은 가장 아래 부분에 배치
                     Column(
-                        modifier = Modifier.padding(16.dp).fillMaxSize(), 
+                        modifier = Modifier.padding(12.dp).fillMaxSize(), 
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("테이블 ${table.id}", style = MaterialTheme.typography.titleMedium)
-                        
-                        Column(modifier = Modifier.weight(1f).padding(top = 8.dp, bottom = 8.dp)) {
-                            if (table.orders.isNotEmpty()) {
-                                table.orders.forEach { order ->
-                                    Text(
-                                        text = "${order.menuItem.name} x ${order.quantity}",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                        Column {
+                            Text("테이블 ${table.id}", style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Column(modifier = Modifier.height(60.dp)) {
+                                if (table.orders.isNotEmpty()) {
+                                    table.orders.take(3).forEach { order ->
+                                        Text(
+                                            text = "${order.menuItem.name} x ${order.quantity}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    if (table.orders.size > 3) {
+                                        Text("외 ${table.orders.size - 3}건", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                    }
                                 }
                             }
                         }
@@ -101,10 +104,9 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                 }
             }
             
-            // 관리자 버튼
             item {
                 Card(
-                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(150.dp).clickable {
+                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(160.dp).clickable {
                         navController.navigate("admin_login")
                     },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -122,7 +124,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
 fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) {
     var showCheckout by remember { mutableStateOf(false) }
     val table = DataManager.tables.find { it.id == tableId } ?: return
-    
     var updateTrigger by remember { mutableStateOf(0) }
 
     if (showCheckout) {
@@ -190,6 +191,7 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
+    // 요구사항 2: 왼쪽 화면에 5개 내역 우선 출력, 공간 부족 시 오른쪽 공간에 나머지 내역 표시
     val leftOrders = table.orders.take(5)
     val rightOrders = table.orders.drop(5)
     
@@ -250,7 +252,7 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text("관리자 비밀번호를 입력하세요 (기본: 1234)", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(value = password, onValueChange = { password = it })
+        OutlinedTextField(value = password, onValueChange = { password = it }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = {
             if (password == DataManager.adminPassword) {
@@ -265,6 +267,7 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
 fun AdminScreen(navController: androidx.navigation.NavController) {
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
+    // 요구사항 3: 메인으로 나갔다 들어오면 항상 현재 날짜로 초기화되도록 시스템 현재 시간 사용
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     var showDatePicker by remember { mutableStateOf(false) }
     
@@ -284,6 +287,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = monthlyReceipts.sumOf { it.totalAmount }
 
+    // 요구사항 3: 날짜 클릭 시 전체 화면에 달력 표시
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -302,7 +306,11 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("관리자 페이지", style = MaterialTheme.typography.titleMedium)
             
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { showDatePicker = true }) {
+            // 요구사항 3: 우측 상단 현재 날짜 명시 및 클릭 가능
+            Row(
+                verticalAlignment = Alignment.CenterHorizontally, 
+                modifier = Modifier.clickable { showDatePicker = true }.padding(8.dp)
+            ) {
                 Text("📅 ${uiDateFormat.format(selectedDate)}", style = MaterialTheme.typography.headlineSmall, color = Color.Black)
             }
         }
@@ -310,6 +318,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(modifier = Modifier.fillMaxSize()) {
+            // 요구사항 4: 왼쪽에는 월별/일별 매출 합계 표시
             Column(
                 modifier = Modifier
                     .weight(0.4f)
@@ -350,6 +359,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 }
             }
             
+            // 요구사항 4: 우측에는 선택된 일별 매출 내역이 스크롤되어 표시
             LazyColumn(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
                 items(dailyReceipts) { receipt ->
                     Card(
