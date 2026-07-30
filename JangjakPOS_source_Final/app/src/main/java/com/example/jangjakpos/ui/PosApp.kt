@@ -201,18 +201,17 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
-    // 3분할 로직: 좌측(최대6), 중앙(최대6), 우측(최대3)
     val leftItems = table.orders.take(6)
     val centerItems = table.orders.drop(6).take(6)
     val rightItems = table.orders.drop(12).take(3)
 
     Column(modifier = Modifier.fillMaxSize().padding(32.dp)) {
         Text("정산 내역", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            // 1. 왼쪽 열 (최대 6개)
-            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+            // 1. 좌측 영역
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                 leftItems.forEach { order ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
@@ -222,8 +221,8 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                 }
             }
             
-            // 2. 가운데 열 (최대 6개)
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+            // 2. 중앙 영역
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 centerItems.forEach { order ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
@@ -233,9 +232,10 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                 }
             }
 
-            // 3. 우측 열 (최대 3개 내역 + 하단 결제 버튼)
-            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-                Column(modifier = Modifier.weight(1f)) {
+            // 3. 우측 영역 (위아래 SpaceBetween으로 버튼을 하단에 고정)
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                // 상단: 나머지 3개 주문 내역
+                Column {
                     rightItems.forEach { order ->
                         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
@@ -245,30 +245,28 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                     }
                 }
                 
-                Divider(modifier = Modifier.padding(vertical = 12.dp))
-                
-                // 우측 하단 합계 표시
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                // 하단: 합계 및 결제/취소 버튼 (우측 정렬)
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
+                    Divider(modifier = Modifier.padding(vertical = 12.dp))
                     Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium)
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // 우측 하단 버튼 모음
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Button(onClick = {
-                        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                        val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
-                        DataManager.receipts.add(receipt)
-                        DataManager.saveReceipts()
-                        
-                        DataManager.clearTable(tableId)
-                        navController.popBackStack()
-                    }, modifier = Modifier.weight(1f).height(55.dp).padding(end = 8.dp)) {
-                        Text("지급완료")
-                    }
+                    Spacer(modifier = Modifier.height(24.dp))
                     
-                    Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp).padding(start = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
-                        Text("취소") 
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = {
+                            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                            val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
+                            DataManager.receipts.add(receipt)
+                            DataManager.saveReceipts()
+                            
+                            DataManager.clearTable(tableId)
+                            navController.popBackStack()
+                        }, modifier = Modifier.height(55.dp).padding(end = 8.dp)) {
+                            Text("지급완료")
+                        }
+                        
+                        Button(onClick = onCancel, modifier = Modifier.height(55.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
+                            Text("취소") 
+                        }
                     }
                 }
             }
@@ -312,11 +310,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }.sumOf { it.totalAmount }
 
-    // 팝업 달력 처리 (깨짐 방지 및 자동 닫힘)
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
         
-        // 날짜 선택 시 자동으로 창을 닫도록 Effect 적용
         LaunchedEffect(datePickerState.selectedDateMillis) {
             datePickerState.selectedDateMillis?.let {
                 if (it != selectedMillis) {
@@ -328,7 +324,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
 
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = { }, // 날짜 선택 시 자동 닫히므로 확인 버튼 불필요
+            confirmButton = { },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) { Text("닫기") }
             }
@@ -336,8 +332,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
             DatePicker(
                 state = datePickerState,
                 showModeToggle = false,
-                title = null,     // 타이틀 제거로 공간 절약 및 깨짐 방지
-                headline = null   // 헤드라인 제거로 날짜 숫자와 요일 겹침 방지
+                // 빈 컴포저블을 명시하여 글씨 겹침 현상 원천 차단
+                title = { },     
+                headline = { }   
             )
         }
     }
@@ -352,12 +349,10 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(8.dp))
         
         Row(modifier = Modifier.fillMaxSize()) {
-            // 좌측: 월별/일별 합계 및 메인으로 돌아가기 버튼 (항상 보이도록 SpaceBetween 배치)
-            Column(
-                modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
+            // 좌측 영역
+            Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
+                // 매출 카드들은 스크롤 가능하게 묶어서 버튼이 밀려나지 않도록 보호
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
                     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
                             Text("월별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
@@ -377,16 +372,16 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     }
                 }
                 
-                // 좌측 하단에 메인으로 돌아가기 버튼 고정 배치
+                // 바닥에 돌아가기 버튼 고정
                 Button(
                     onClick = { navController.navigate("main") { popUpTo(0) } }, 
-                    modifier = Modifier.fillMaxWidth().height(55.dp).padding(bottom = 8.dp)
+                    modifier = Modifier.fillMaxWidth().height(55.dp)
                 ) {
                     Text("메인으로 돌아가기")
                 }
             }
             
-            // 우측: 정산 내역
+            // 우측 정산 내역 영역
             LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) {
                 if (dailyReceipts.isEmpty()) {
                     item { 
