@@ -5,17 +5,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
 import kotlinx.coroutines.delay
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -40,17 +40,16 @@ fun MainScreen(navController: androidx.navigation.NavController) {
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     var currentTime by remember { mutableStateOf(dateFormat.format(Date())) }
     
-    // UI 갱신용 트리거
     var updateTrigger by remember { mutableStateOf(0) }
 
-    // 1분마다 시간 갱신 및 날짜 변경 시 리셋 체크
+    // 1분 단위 시계 갱신 및 날짜 변경 시 테이블 자동 초기화 체크
     LaunchedEffect(Unit) {
         while (true) {
             val now = Date()
             currentTime = dateFormat.format(now)
             DataManager.checkAndResetDaily(dayFormat.format(now))
             updateTrigger++
-            delay(60000L) // 1분 대기
+            delay(60000L)
         }
     }
 
@@ -61,7 +60,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
         }
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 고정 4열로 화면을 가득 채우도록 설정
         LazyVerticalGrid(
             columns = GridCells.Fixed(4), 
             modifier = Modifier.weight(1f)
@@ -69,43 +67,52 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             items(7) { index ->
                 val dummy = updateTrigger
                 val table = DataManager.tables[index]
+                val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
+                val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
                 
                 Card(
-                    modifier = Modifier.padding(6.dp).fillMaxWidth().height(200.dp).clickable {
+                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(150.dp).clickable {
                         navController.navigate("order/${table.id}")
-                    },
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    }
                 ) {
-                    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                        Text("테이블 ${table.id}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    Column(modifier = Modifier.padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                        // 상단: 테이블 번호와 가격
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("테이블 ${table.id}", style = MaterialTheme.typography.titleMedium)
+                            Text(if (totalAmount > 0) "${numFormat.format(totalAmount)}원" else "비어있음", style = MaterialTheme.typography.titleMedium)
+                        }
                         
-                        // 테이블 내부에서 메뉴 내역이 스크롤되도록 설정
-                        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                            if (table.orders.isEmpty()) {
-                                Text("비어있음", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
-                            } else {
-                                table.orders.forEach { order ->
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium)
-                                        Text("${order.quantity}개", style = MaterialTheme.typography.bodyMedium)
-                                    }
+                        // 하단: 첫 번째 주문 메뉴 x 수량 및 아랫줄에 작은 글씨로 '외 N개' 표시
+                        Column {
+                            if (table.orders.isNotEmpty()) {
+                                val firstOrder = table.orders[0]
+                                Text(
+                                    text = "${firstOrder.menuItem.name} x ${firstOrder.quantity}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                if (table.orders.size > 1) {
+                                    Text(
+                                        text = "외 ${table.orders.size - 1}개",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+            
+            // 관리자 버튼
             item {
                 Card(
-                    modifier = Modifier.padding(6.dp).fillMaxWidth().height(200.dp).clickable {
+                    modifier = Modifier.padding(8.dp).fillMaxWidth().height(150.dp).clickable {
                         navController.navigate("admin_login")
                     },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("관리자", style = MaterialTheme.typography.headlineSmall)
+                        Text("관리자", style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
@@ -118,7 +125,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     var showCheckout by remember { mutableStateOf(false) }
     val table = DataManager.tables.find { it.id == tableId } ?: return
     
-    // 강제 UI 갱신을 위한 변수
     var updateTrigger by remember { mutableStateOf(0) }
 
     if (showCheckout) {
@@ -164,7 +170,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                                     if(existing.quantity == 0) table.orders.remove(existing)
                                 }
                                 DataManager.saveTables()
-                                updateTrigger++ // 수량 변경 시 즉시 UI 업데이트
+                                updateTrigger++
                             }, modifier = Modifier.weight(1f).padding(end = 2.dp)) { Text("-") }
                             
                             Button(onClick = {
@@ -172,7 +178,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                                 if (existing != null) existing.quantity++
                                 else table.orders.add(OrderItem(menu, 1))
                                 DataManager.saveTables()
-                                updateTrigger++ // 수량 변경 시 즉시 UI 업데이트
+                                updateTrigger++
                             }, modifier = Modifier.weight(1f).padding(start = 2.dp)) { Text("+") }
                         }
                     }
@@ -186,6 +192,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
 fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavController, onCancel: () -> Unit) {
     val table = DataManager.tables.find { it.id == tableId } ?: return
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
+    val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("정산 내역", style = MaterialTheme.typography.headlineLarge)
@@ -197,12 +204,12 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
                     Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
-                    Text("${order.menuItem.price * order.quantity}원", style = MaterialTheme.typography.titleMedium)
+                    Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
         
-        Text("합계: ${totalAmount}원", style = MaterialTheme.typography.headlineMedium)
+        Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(32.dp))
         
         Row {
@@ -245,6 +252,7 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
 fun AdminScreen(navController: androidx.navigation.NavController) {
     var selectedDateStr by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState()
+    val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
@@ -266,7 +274,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(modifier = Modifier.fillMaxSize()) {
-            // 좌측: 달력 (상단 공간 최소화)
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -275,8 +282,8 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 DatePicker(
                     state = datePickerState,
                     showModeToggle = false,
-                    title = { },     // 상단 공간 제거
-                    headline = { },  // 큰 텍스트 제거
+                    title = { },
+                    headline = { },
                     modifier = Modifier.padding(top = 0.dp)
                 )
                 Button(onClick = { selectedDateStr = null }, modifier = Modifier.fillMaxWidth()) {
@@ -284,7 +291,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 }
             }
             
-            // 우측: 정산 내역 및 매출 합계 (스크롤 처리)
             Column(modifier = Modifier.weight(1.2f).fillMaxHeight()) {
                 val filteredReceipts = if (selectedDateStr != null) {
                     DataManager.receipts.filter { it.date.startsWith(selectedDateStr!!) }
@@ -299,7 +305,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                             text = if (selectedDateStr != null) "${selectedDateStr} 매출 합계" else "전체 누적 매출 합계", 
                             style = MaterialTheme.typography.titleMedium
                         )
-                        Text("${totalSales}원", style = MaterialTheme.typography.headlineSmall)
+                        Text("${numFormat.format(totalSales)}원", style = MaterialTheme.typography.headlineSmall)
                     }
                 }
                 
@@ -310,7 +316,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                         Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text("결제일시: ${receipt.date}", style = MaterialTheme.typography.bodyMedium)
-                                Text("결제금액: ${receipt.totalAmount}원", style = MaterialTheme.typography.titleMedium)
+                                Text("결제금액: ${numFormat.format(receipt.totalAmount)}원", style = MaterialTheme.typography.titleMedium)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 receipt.items.forEach { item ->
                                     Text("- ${item.menuItem.name} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
