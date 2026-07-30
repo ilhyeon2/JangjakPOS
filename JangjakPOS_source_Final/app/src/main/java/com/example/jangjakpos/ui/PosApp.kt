@@ -75,30 +75,32 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                         navController.navigate("order/${table.id}")
                     }
                 ) {
-                    Column(modifier = Modifier.padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                        // 상단: 테이블 번호와 가격
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("테이블 ${table.id}", style = MaterialTheme.typography.titleMedium)
-                            Text(if (totalAmount > 0) "${numFormat.format(totalAmount)}원" else "비어있음", style = MaterialTheme.typography.titleMedium)
-                        }
+                    // 요구사항 1: 테이블 번호 아래 주문내역 표시, 총 금액 최하단 표시
+                    Column(
+                        modifier = Modifier.padding(16.dp).fillMaxSize(), 
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // 상단: 테이블 번호
+                        Text("테이블 ${table.id}", style = MaterialTheme.typography.titleMedium)
                         
-                        // 하단: 첫 번째 주문 메뉴 x 수량 및 아랫줄에 작은 글씨로 '외 N개' 표시
-                        Column {
+                        // 중단: 주문 내역 리스트
+                        Column(modifier = Modifier.weight(1f).padding(top = 8.dp, bottom = 8.dp)) {
                             if (table.orders.isNotEmpty()) {
-                                val firstOrder = table.orders[0]
-                                Text(
-                                    text = "${firstOrder.menuItem.name} x ${firstOrder.quantity}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                if (table.orders.size > 1) {
+                                table.orders.forEach { order ->
                                     Text(
-                                        text = "외 ${table.orders.size - 1}개",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.Gray
+                                        text = "${order.menuItem.name} x ${order.quantity}",
+                                        style = MaterialTheme.typography.bodySmall
                                     )
                                 }
                             }
                         }
+                        
+                        // 하단: 총 금액
+                        Text(
+                            text = if (totalAmount > 0) "${numFormat.format(totalAmount)}원" else "비어있음",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.align(Alignment.End)
+                        )
                     }
                 }
             }
@@ -194,18 +196,38 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
+    // 요구사항 2: 정산 내역 화면 좌/우 분할, 왼쪽 5개 출력 후 나머지 우측 출력
+    val leftOrders = table.orders.take(5)
+    val rightOrders = table.orders.drop(5)
+    
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("정산 내역", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(16.dp))
         
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(0.6f)) {
-            items(table.orders.size) { index ->
-                val order = table.orders[index]
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
-                    Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
-                    Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium)
+        Row(modifier = Modifier.weight(1f).fillMaxWidth(0.8f)) {
+            // 왼쪽 영역 (최대 5개)
+            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                leftOrders.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
+            }
+            // 오른쪽 영역 (나머지)
+            if (rightOrders.isNotEmpty()) {
+                Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                    rightOrders.forEach { order ->
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
+                            Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
+                            Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
         
@@ -250,77 +272,118 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminScreen(navController: androidx.navigation.NavController) {
-    var selectedDateStr by remember { mutableStateOf<String?>(null) }
-    val datePickerState = rememberDatePickerState()
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
+    
+    // 요구사항 3: 메인에서 진입할 때마다 현재 시간으로 달력 초기화
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
+    var showDatePicker by remember { mutableStateOf(false) }
+    
+    val selectedDateMillis = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
+    val selectedDate = Date(selectedDateMillis)
+    
+    val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val monthFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+    val uiDateFormat = SimpleDateFormat("yy년 M월 d일", Locale.KOREA)
+    
+    val selectedDayStr = dayFormat.format(selectedDate)
+    val selectedMonthStr = monthFormat.format(selectedDate)
 
-    LaunchedEffect(datePickerState.selectedDateMillis) {
-        datePickerState.selectedDateMillis?.let { millis ->
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            selectedDateStr = sdf.format(Date(millis.toLong())) 
-        } ?: run {
-            selectedDateStr = null
+    // 선택된 날짜 기준의 일별, 월별 영수증 데이터 필터링
+    val dailyReceipts = DataManager.receipts.filter { it.date.startsWith(selectedDayStr) }
+    val monthlyReceipts = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }
+
+    val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
+    val monthlyTotal = monthlyReceipts.sumOf { it.totalAmount }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("확인") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("취소") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // 상단 바 (관리자 타이틀 및 우측 날짜)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("관리자 페이지 (정산 내역)", style = MaterialTheme.typography.headlineMedium)
-            Button(onClick = { navController.navigate("main") { popUpTo(0) } }) {
-                Text("메인으로 돌아가기")
+            Text("관리자 페이지", style = MaterialTheme.typography.titleMedium)
+            
+            // 요구사항 3: 우측 상단 현재 날짜 명시, 클릭 시 달력 다이얼로그 호출
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { showDatePicker = true }) {
+                Text("📅 ${uiDateFormat.format(selectedDate)}", style = MaterialTheme.typography.headlineSmall, color = Color.Black)
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
+        // 요구사항 4: 화면을 좌/우로 분할 (좌측: 매출합계 & 버튼, 우측: 내역 스크롤)
         Row(modifier = Modifier.fillMaxSize()) {
+            
+            // 좌측 영역 (비율 0.4)
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 16.dp)
+                    .weight(0.4f)
+                    .fillMaxHeight()
+                    .padding(end = 16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                DatePicker(
-                    state = datePickerState,
-                    showModeToggle = false,
-                    title = { },
-                    headline = { },
-                    modifier = Modifier.padding(top = 0.dp)
-                )
-                Button(onClick = { selectedDateStr = null }, modifier = Modifier.fillMaxWidth()) {
-                    Text("전체 내역 보기")
+                Column {
+                    // 월별 매출 합계
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5470)) // 어두운 푸른색 계열 (이미지 참조)
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp)) {
+                            Text("월별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("${numFormat.format(monthlyTotal)}원", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
+                    
+                    // 일별 매출 합계
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5470))
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp)) {
+                            Text("일별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("${numFormat.format(dailyTotal)}원", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
+                }
+
+                // 메인으로 돌아가기 버튼
+                Button(
+                    onClick = { navController.navigate("main") { popUpTo(0) } },
+                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A68A6)) // 보라색 계열 (이미지 참조)
+                ) {
+                    Text("메인으로 돌아가기")
                 }
             }
             
-            Column(modifier = Modifier.weight(1.2f).fillMaxHeight()) {
-                val filteredReceipts = if (selectedDateStr != null) {
-                    DataManager.receipts.filter { it.date.startsWith(selectedDateStr!!) }
-                } else {
-                    DataManager.receipts
-                }
-                val totalSales = filteredReceipts.sumOf { it.totalAmount }
-                
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = if (selectedDateStr != null) "${selectedDateStr} 매출 합계" else "전체 누적 매출 합계", 
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text("${numFormat.format(totalSales)}원", style = MaterialTheme.typography.headlineSmall)
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredReceipts) { receipt ->
-                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text("결제일시: ${receipt.date}", style = MaterialTheme.typography.bodyMedium)
-                                Text("결제금액: ${numFormat.format(receipt.totalAmount)}원", style = MaterialTheme.typography.titleMedium)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                receipt.items.forEach { item ->
-                                    Text("- ${item.menuItem.name} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
-                                }
+            // 우측 영역 (비율 0.6) - 일별 매출 내역 리스트 스크롤
+            LazyColumn(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
+                items(dailyReceipts) { receipt ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFE6F7)) // 연한 보라색 배경 (이미지 참조)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("결제일시: ${receipt.date}", style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("결제금액: ${numFormat.format(receipt.totalAmount)}원", style = MaterialTheme.typography.titleMedium, color = Color.Black)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            receipt.items.forEach { item ->
+                                Text("- ${item.menuItem.name} x ${item.quantity}", style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
                             }
                         }
                     }
