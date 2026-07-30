@@ -38,7 +38,7 @@ fun MainScreen(navController: androidx.navigation.NavController) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("장작떼기", style = MaterialTheme.typography.headlineLarge)
+            Text("장작떼기 POS", style = MaterialTheme.typography.headlineLarge)
             Text("현재 시간: ${currentTime.value}", style = MaterialTheme.typography.titleLarge)
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -67,7 +67,7 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("관리자")
+                        Text("관리자", style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
@@ -193,10 +193,11 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     var selectedDateStr by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState()
 
+    // 타입 모호성 에러 해결: millis.toLong()으로 명시적 변환
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            selectedDateStr = sdf.format(Date(millis))
+            selectedDateStr = sdf.format(Date(millis.toLong())) 
         } ?: run {
             selectedDateStr = null
         }
