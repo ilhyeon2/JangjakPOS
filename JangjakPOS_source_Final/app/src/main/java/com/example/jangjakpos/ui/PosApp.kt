@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
 import kotlinx.coroutines.delay
@@ -201,72 +203,72 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     
+    // 3분할 데이터 분리: 좌측 6개, 중앙 6개, 우측은 누락되지 않게 '나머지 전체(drop(12))' 할당
     val leftItems = table.orders.take(6)
     val centerItems = table.orders.drop(6).take(6)
-    val rightItems = table.orders.drop(12).take(3)
+    val rightItems = table.orders.drop(12) 
 
-    Column(modifier = Modifier.fillMaxSize().padding(32.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("정산 내역", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
-        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            // 1. 좌측 영역
-            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+        // 데이터가 길어져도 짤리지 않게 전체 Row에 스크롤을 줍니다.
+        Row(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            
+            // 1. 왼쪽 영역
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 leftItems.forEach { order ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
-                        Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium)
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
             
-            // 2. 중앙 영역
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            // 2. 가운데 영역
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
                 centerItems.forEach { order ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
-                        Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium)
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
 
-            // 3. 우측 영역 (위아래 SpaceBetween으로 버튼을 하단에 고정)
-            Column(modifier = Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                // 상단: 나머지 3개 주문 내역
-                Column {
-                    rightItems.forEach { order ->
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium)
-                            Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium)
-                            Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium)
-                        }
+            // 3. 우측 영역 (나머지 주문 내역 표기 후, 하단에 합계 및 버튼 표기)
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                rightItems.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
                 
-                // 하단: 합계 및 결제/취소 버튼 (우측 정렬)
-                Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
-                    Divider(modifier = Modifier.padding(vertical = 12.dp))
-                    Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium)
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = {
-                            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
-                            DataManager.receipts.add(receipt)
-                            DataManager.saveReceipts()
-                            
-                            DataManager.clearTable(tableId)
-                            navController.popBackStack()
-                        }, modifier = Modifier.height(55.dp).padding(end = 8.dp)) {
-                            Text("지급완료")
-                        }
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                // 우측 하단 합계 
+                Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 우측 하단 지급완료 및 취소 버튼
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = {
+                        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                        val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
+                        DataManager.receipts.add(receipt)
+                        DataManager.saveReceipts()
                         
-                        Button(onClick = onCancel, modifier = Modifier.height(55.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
-                            Text("취소") 
-                        }
+                        DataManager.clearTable(tableId)
+                        navController.popBackStack()
+                    }, modifier = Modifier.weight(1f).height(55.dp).padding(end = 4.dp)) {
+                        Text("지급완료")
+                    }
+                    
+                    Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp).padding(start = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
+                        Text("취소") 
                     }
                 }
             }
@@ -310,9 +312,11 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }.sumOf { it.totalAmount }
 
+    // 캘린더 깨짐 방지를 위한 팝업 다이얼로그 처리 (강제 스크롤 및 높이 제한)
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
         
+        // 날짜를 누르는 즉시 상태가 갱신되고 팝업이 닫힘
         LaunchedEffect(datePickerState.selectedDateMillis) {
             datePickerState.selectedDateMillis?.let {
                 if (it != selectedMillis) {
@@ -322,20 +326,26 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
             }
         }
 
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = { },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("닫기") }
+        Dialog(onDismissRequest = { showDatePicker = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().height(400.dp) // 높이를 강제 고정하여 깨짐 방지
+            ) {
+                Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    // 스크롤 가능한 공간에 캘린더를 띄워 요일 겹침 방지
+                    Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        DatePicker(
+                            state = datePickerState,
+                            showModeToggle = false,
+                            title = null,
+                            headline = null
+                        )
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showDatePicker = false }) { Text("닫기") }
+                    }
+                }
             }
-        ) {
-            DatePicker(
-                state = datePickerState,
-                showModeToggle = false,
-                // 빈 컴포저블을 명시하여 글씨 겹침 현상 원천 차단
-                title = { },     
-                headline = { }   
-            )
         }
     }
 
@@ -350,9 +360,11 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         
         Row(modifier = Modifier.fillMaxSize()) {
             // 좌측 영역
-            Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
-                // 매출 카드들은 스크롤 가능하게 묶어서 버튼이 밀려나지 않도록 보호
-                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)
+            ) {
+                // 매출 합계 카드 (화면 크기에 따라 유동적으로 크기 조정됨)
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
                             Text("월별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
@@ -372,10 +384,10 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     }
                 }
                 
-                // 바닥에 돌아가기 버튼 고정
+                // 화면 가장 하단에 돌아가기 버튼 완벽 고정
                 Button(
                     onClick = { navController.navigate("main") { popUpTo(0) } }, 
-                    modifier = Modifier.fillMaxWidth().height(55.dp)
+                    modifier = Modifier.fillMaxWidth().height(55.dp).padding(top = 8.dp)
                 ) {
                     Text("메인으로 돌아가기")
                 }
