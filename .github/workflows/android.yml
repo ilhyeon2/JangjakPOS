@@ -23,8 +23,13 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
+    # Gradle 실행 권한 부여 추가
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew || true
+
+    # Gradle Wrapper 사용하여 디버그 빌드
     - name: Build Debug APK
-      run: gradle assembleDebug
+      run: ./gradlew assembleDebug || gradle assembleDebug
 
     - name: Rename APK file
       run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/JangjakPOS.apk
