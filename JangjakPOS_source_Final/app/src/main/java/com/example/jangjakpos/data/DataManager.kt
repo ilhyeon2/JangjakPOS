@@ -1,12 +1,16 @@
 package com.example.jangjakpos.data
 
 import android.content.Context
+import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 data class MenuItem(var name: String, var price: Int)
 data class OrderItem(val menuItem: MenuItem, var quantity: Int)
@@ -21,7 +25,6 @@ object DataManager {
     private lateinit var passwordFile: File 
     private val gson = Gson()
 
-    // 테이블 기본값을 8개로 설정
     var tables = List(8) { Table(it + 1) }
     var receipts = mutableListOf<Receipt>()
     var menuItems = mutableListOf<MenuItem>()
@@ -38,7 +41,7 @@ object DataManager {
         loadData()
     }
 
-    private fun loadData() {
+    fun loadData() {
         if (passwordFile.exists()) {
             adminPassword = passwordFile.readText()
         } else {
@@ -69,7 +72,6 @@ object DataManager {
             
             if (loadedTables != null) {
                 val mutableTables = loadedTables.toMutableList()
-                // 기존 저장된 데이터가 7개일 경우 8개로 안전하게 확장하여 에러 방지
                 while (mutableTables.size < 8) {
                     mutableTables.add(Table(mutableTables.size + 1))
                 }
@@ -117,5 +119,59 @@ object DataManager {
     fun clearTable(tableId: Int) {
         tables.find { it.id == tableId }?.orders?.clear()
         saveTables()
+    }
+
+    // ---------------------------------------------------------
+    // [추가됨] 백업 내보내기 로직 (5개 파일을 ZIP으로 압축)
+    // ---------------------------------------------------------
+    fun exportBackup(context: Context, uri: Uri): Boolean {
+        return try {
+            context.contentResolver.openOutputStream(uri)?.use { os ->
+                ZipOutputStream(os).use { zos ->
+                    val filesToBackup = listOf(dataFile, receiptFile, menuFile, dateFile, passwordFile)
+                    for (file in filesToBackup) {
+                        if (file.exists()) {
+                            zos.putNextEntry(ZipEntry(file.name))
+                            file.inputStream().use { it.copyTo(zos) }
+                            zos.closeEntry()
+                        }
+                    }
+                }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    // ---------------------------------------------------------
+    // [추가됨] 백업 가져오기 로직 (ZIP 파일 압축 해제 및 덮어쓰기)
+    // ---------------------------------------------------------
+    fun importBackup(context: Context, uri: Uri): Boolean {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                ZipInputStream(inputStream).use { zis ->
+                    var entry = zis.nextEntry
+                    val validNames = listOf("tables.json", "receipts.json", "menus.json", "last_date.txt", "password.txt")
+                    while (entry != null) {
+                        if (validNames.contains(entry.name)) {
+                            val targetFile = File(context.filesDir, entry.name)
+                            targetFile.outputStream().use { fos ->
+                                zis.copyTo(fos)
+                            }
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                }
+            }
+            // 덮어쓴 파일을 메모리로 다시 로딩
+            loadData()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }
