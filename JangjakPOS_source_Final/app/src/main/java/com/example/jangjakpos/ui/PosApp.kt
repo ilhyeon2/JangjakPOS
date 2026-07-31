@@ -21,12 +21,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
 import kotlinx.coroutines.delay
@@ -356,7 +358,10 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
             Spacer(modifier = Modifier.width(16.dp))
             
             Box {
-                IconButton(onClick = { expandedMenu = true }) {
+                IconButton(onClick = { 
+                    expandedMenu = true
+                    Toast.makeText(context, "브랜치: ilhyeon2-patch-0731", Toast.LENGTH_SHORT).show()
+                }) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(32.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
@@ -417,33 +422,35 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
-    // 2. 적용/취소 분리: 화면 내부의 상태(menuList)만 변경하고, 적용 버튼을 눌러야만 실제 DataManager에 저장됨
+    // 적용 버튼을 눌러야만 원본에 저장되도록 상태 분리
     var menuList by remember { mutableStateOf(DataManager.menuItems.toList()) }
     var newMenuName by remember { mutableStateOf("") }
     var newMenuPrice by remember { mutableStateOf("") }
     val context = LocalContext.current
     
-    // 1. 자동 스크롤을 위한 LazyListState 및 CoroutineScope 추가
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
+    // 플로팅 및 위치 변경을 위한 글로벌 상태
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(0f) }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = { 
-                // 뒤로가기 누르면 저장하지 않고 원복(취소)
-                navController.popBackStack() 
-            }) {
-                Icon(Icons.Default.ArrowBack, "뒤로 가기 (원복)")
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, "원복 및 뒤로가기")
             }
             Text("메뉴 관리", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
             
-            // 상단 우측 적용 버튼 추가
-            Button(onClick = {
-                DataManager.menuItems = menuList.toMutableList()
-                DataManager.saveMenus()
-                Toast.makeText(context, "메뉴가 성공적으로 반영되었습니다.", Toast.LENGTH_SHORT).show()
-                navController.popBackStack()
-            }, modifier = Modifier.height(45.dp)) {
+            Button(
+                onClick = {
+                    DataManager.menuItems = menuList.toMutableList()
+                    DataManager.saveMenus()
+                    Toast.makeText(context, "메뉴가 성공적으로 적용되었습니다.", Toast.LENGTH_SHORT).show()
+                    navController.popBackStack()
+                }, 
+                modifier = Modifier.height(45.dp)
+            ) {
                 Text("적용")
             }
         }
@@ -451,12 +458,33 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(16.dp))
         
         LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
-            items(menuList.size) { index ->
+            // key를 메모리 주소값으로 설정하여 UI 노드가 데이터 위치를 완벽하게 따라가도록 구성
+            items(
+                count = menuList.size,
+                key = { index -> System.identityHashCode(menuList[index]) }
+            ) { index ->
                 val menu = menuList[index]
-                var priceText by remember { mutableStateOf(menu.price.toString()) }
-                var offsetY by remember { mutableStateOf(0f) }
+                var priceText by remember(menu) { mutableStateOf(menu.price.toString()) }
                 
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                // 현재 아이템이 드래그 중인지 판단하여 시각적 효과(플로팅) 부여
+                val isDragged = index == draggedIndex
+                val zIndex = if (isDragged) 1f else 0f
+                val elevation = if (isDragged) 12.dp else 2.dp
+                
+                val currentIndex by rememberUpdatedState(index)
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .zIndex(zIndex) // 선택된 카드를 맨 위로
+                        .graphicsLayer {
+                            translationY = if (isDragged) dragOffset else 0f
+                            scaleX = if (isDragged) 1.02f else 1f // 약간 커지는 효과
+                            scaleY = if (isDragged) 1.02f else 1f
+                        },
+                    elevation = CardDefaults.cardElevation(defaultElevation = elevation) // 그림자 진하게
+                ) {
                     Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         
                         Icon(
@@ -465,40 +493,56 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                             modifier = Modifier
                                 .size(36.dp)
                                 .padding(end = 8.dp)
-                                .pointerInput(Unit) {
+                                .pointerInput(menu) {
                                     detectDragGestures(
-                                        onDragEnd = { offsetY = 0f },
-                                        onDragCancel = { offsetY = 0f },
+                                        onDragStart = {
+                                            draggedIndex = currentIndex
+                                            dragOffset = 0f
+                                        },
+                                        onDragEnd = {
+                                            draggedIndex = null
+                                            dragOffset = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggedIndex = null
+                                            dragOffset = 0f
+                                        },
                                         onDrag = { change, dragAmount ->
                                             change.consume()
-                                            offsetY += dragAmount.y
+                                            dragOffset += dragAmount.y
                                             
-                                            // 드래그 임계치 도달 시 순서 변경 및 "자동 스크롤" 실행
-                                            val dragThreshold = 80f
-                                            if (offsetY > dragThreshold && index < menuList.size - 1) {
+                                            // 일정 높이(120px) 이상 이동 시 실시간 데이터 스위치
+                                            val threshold = 120f
+                                            val cIdx = draggedIndex ?: return@detectDragGestures
+                                            
+                                            if (dragOffset > threshold && cIdx < menuList.size - 1) {
                                                 val newList = menuList.toMutableList()
-                                                val temp = newList[index]
-                                                newList[index] = newList[index + 1]
-                                                newList[index + 1] = temp
+                                                val temp = newList[cIdx]
+                                                newList[cIdx] = newList[cIdx + 1]
+                                                newList[cIdx + 1] = temp
                                                 menuList = newList.toList()
-                                                offsetY = 0f 
-                                                // 아래로 자동 스크롤
-                                                coroutineScope.launch { listState.scrollBy(100f) }
-                                            } else if (offsetY < -dragThreshold && index > 0) {
+                                                draggedIndex = cIdx + 1
+                                                dragOffset -= threshold
+                                            } else if (dragOffset < -threshold && cIdx > 0) {
                                                 val newList = menuList.toMutableList()
-                                                val temp = newList[index]
-                                                newList[index] = newList[index - 1]
-                                                newList[index - 1] = temp
+                                                val temp = newList[cIdx]
+                                                newList[cIdx] = newList[cIdx - 1]
+                                                newList[cIdx - 1] = temp
                                                 menuList = newList.toList()
-                                                offsetY = 0f
-                                                // 위로 자동 스크롤
-                                                coroutineScope.launch { listState.scrollBy(-100f) }
+                                                draggedIndex = cIdx - 1
+                                                dragOffset += threshold
+                                            }
+
+                                            // 플로팅 뷰를 따라 리스트가 자동으로 스크롤됨
+                                            coroutineScope.launch {
+                                                listState.scrollBy(dragAmount.y)
                                             }
                                         }
                                     )
                                 }
                         )
 
+                        // 보조용 화살표 버튼 (유지)
                         Column {
                             IconButton(onClick = {
                                 if (index > 0) {
@@ -507,7 +551,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     newList[index] = newList[index - 1]
                                     newList[index - 1] = temp
                                     menuList = newList.toList()
-                                    coroutineScope.launch { listState.scrollBy(-100f) }
+                                    coroutineScope.launch { listState.scrollBy(-150f) }
                                 }
                             }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.KeyboardArrowUp, "위로")
@@ -519,7 +563,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     newList[index] = newList[index + 1]
                                     newList[index + 1] = temp
                                     menuList = newList.toList()
-                                    coroutineScope.launch { listState.scrollBy(100f) }
+                                    coroutineScope.launch { listState.scrollBy(150f) }
                                 }
                             }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.KeyboardArrowDown, "아래로")
@@ -586,7 +630,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                     
                     newMenuName = ""
                     newMenuPrice = ""
-                    // 메뉴 추가 시 맨 아래로 자동 스크롤
+                    
                     coroutineScope.launch { listState.scrollToItem(menuList.size - 1) }
                 }
             }, modifier = Modifier.height(55.dp)) {
@@ -615,11 +659,11 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
         Text("비밀번호 변경", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(48.dp))
         
-        // 3. Edit 박스가 눌려서 텍스트가 안 보이는 현상 해결 (weight 활용)
+        // 텍스트 창 크기를 넓게 확보하여 잘림 방지 (weight(1f) 적용)
         Row(
             verticalAlignment = Alignment.CenterVertically, 
             horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.fillMaxWidth(0.8f) // 중앙에 여유 있게 배치
+            modifier = Modifier.fillMaxWidth(0.9f) 
         ) {
             
             Column(modifier = Modifier.weight(1f).padding(end = 32.dp)) {
@@ -628,7 +672,7 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
                     onValueChange = { currentPassword = it },
                     label = { Text("현재 비밀번호") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(), // 가로로 꽉 차게 확장
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -637,7 +681,7 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
                     onValueChange = { newPassword = it },
                     label = { Text("새 비밀번호") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(), // 가로로 꽉 차게 확장
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             }
