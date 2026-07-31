@@ -1,7 +1,10 @@
 package com.example.jangjakpos.ui
 
 import android.content.res.Configuration
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
@@ -61,16 +64,15 @@ fun MainScreen(navController: androidx.navigation.NavController) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    var currentTime by remember { mutableStateOf(dateFormat.format(Date())) }
+    var currentDate by remember { mutableStateOf(dayFormat.format(Date())) }
     var updateTrigger by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         while (true) {
             val now = Date()
-            currentTime = dateFormat.format(now)
-            DataManager.checkAndResetDaily(dayFormat.format(now))
+            currentDate = dayFormat.format(now)
+            DataManager.checkAndResetDaily(currentDate)
             updateTrigger++
             delay(60000L)
         }
@@ -78,10 +80,13 @@ fun MainScreen(navController: androidx.navigation.NavController) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("장작떼기 POS", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "장작떼기 POS", 
+                style = if (isLandscape) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f)
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(currentTime, style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.width(16.dp))
+                Text(currentDate, style = MaterialTheme.typography.titleMedium)
                 IconButton(onClick = { navController.navigate("admin_login") }) {
                     Icon(Icons.Default.Settings, contentDescription = "관리자 페이지", modifier = Modifier.size(28.dp))
                 }
@@ -95,7 +100,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             columns = GridCells.Fixed(columnsCount),
             modifier = Modifier.weight(1f)
         ) {
-            // DataManager의 테이블 사이즈(8개)만큼 자동으로 아이템 생성
             items(DataManager.tables.size) { index ->
                 val dummy = updateTrigger
                 val table = DataManager.tables[index]
@@ -370,6 +374,28 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     var expandedMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
+    // 데이터 백업 내보내기 런처
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        uri?.let {
+            val success = DataManager.exportBackup(context, it)
+            if (success) Toast.makeText(context, "백업 파일이 안전하게 저장되었습니다.", Toast.LENGTH_SHORT).show()
+            else Toast.makeText(context, "백업 저장에 실패했습니다.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 데이터 복원 가져오기 런처
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            val success = DataManager.importBackup(context, it)
+            if (success) {
+                Toast.makeText(context, "데이터 복원 완료! 최신 정보 확인을 위해 메인으로 이동합니다.", Toast.LENGTH_LONG).show()
+                navController.navigate("main") { popUpTo(0) }
+            } else {
+                Toast.makeText(context, "복원 실패: 올바른 백업 파일인지 확인해주세요.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     val selectedDate = Date(selectedMillis)
     val selectedDayStr = sdfDay.format(selectedDate)
     val selectedMonthStr = sdfMonth.format(selectedDate)
@@ -409,12 +435,23 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 Text(text = "📅 $displayDateStr", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
             }
             Box {
-                IconButton(onClick = { expandedMenu = true; Toast.makeText(context, "브랜치: ilhyeon2-patch-0731", Toast.LENGTH_SHORT).show() }) {
+                IconButton(onClick = { expandedMenu = true }) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(28.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
                     DropdownMenuItem(text = { Text("메뉴 관리") }, onClick = { expandedMenu = false; navController.navigate("menu_settings") })
                     DropdownMenuItem(text = { Text("비밀번호 변경") }, onClick = { expandedMenu = false; navController.navigate("password_settings") })
+                    Divider()
+                    DropdownMenuItem(text = { Text("데이터 백업 (내보내기)") }, onClick = { 
+                        expandedMenu = false
+                        val exportDateFormat = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
+                        val fileName = "JangjakPOS_Backup_${exportDateFormat.format(Date())}.zip"
+                        exportLauncher.launch(fileName)
+                    })
+                    DropdownMenuItem(text = { Text("데이터 복원 (가져오기)") }, onClick = { 
+                        expandedMenu = false
+                        importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "application/x-zip-compressed"))
+                    })
                 }
             }
         }
