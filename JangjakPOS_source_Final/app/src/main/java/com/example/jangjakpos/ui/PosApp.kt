@@ -1,26 +1,38 @@
 package com.example.jangjakpos.ui
 
-import androidx.compose.foundation.background
+import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -37,6 +49,8 @@ fun PosApp() {
         }
         composable("admin_login") { AdminLoginScreen(navController) }
         composable("admin") { AdminScreen(navController) }
+        composable("menu_settings") { MenuSettingsScreen(navController) }
+        composable("password_settings") { PasswordSettingsScreen(navController) }
     }
 }
 
@@ -45,7 +59,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     var currentTime by remember { mutableStateOf(dateFormat.format(Date())) }
-    
     var updateTrigger by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -134,7 +147,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
 fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) {
     var showCheckout by remember { mutableStateOf(false) }
     val table = DataManager.tables.find { it.id == tableId } ?: return
-    
     var updateTrigger by remember { mutableStateOf(0) }
 
     if (showCheckout) {
@@ -209,91 +221,59 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val rightItems = table.orders.drop(12) 
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("정산 내역", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        Spacer(modifier = Modifier.height(16.dp))
+        Text("정산 내역", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(24.dp))
         
-        // 3구간 사이의 간격을 32dp로 확 넓혀서 명확히 구분되게 만듭니다.
-        Row(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(32.dp)
-        ) {
-            
-            // 1. 좌측 영역
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                items(leftItems.size) { index ->
-                    val order = leftItems[index]
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        // 각 항목에 비율(weight)을 지정해 적절한 간격을 유지하며 정렬합니다.
-                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
-                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+        Row(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                leftItems.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
             
-            // 2. 중앙 영역
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                items(centerItems.size) { index ->
-                    val order = centerItems[index]
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
-                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                centerItems.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
 
-            // 3. 우측 영역 (바닥 버튼 고정)
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                
-                // 스크롤되는 정산 내역 목록
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(bottom = 140.dp)) {
-                    items(rightItems.size) { index ->
-                        val order = rightItems[index]
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
-                            Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
-                            Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
-                        }
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                rightItems.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
                 
-                // 하단 합계 및 결제 버튼 (우측 열의 가장 하단에 완벽 고정)
-                Column(
-                    modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth().background(MaterialTheme.colorScheme.background),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Divider(modifier = Modifier.padding(bottom = 8.dp))
-                    
-                    Text(
-                        text = "합계: ${numFormat.format(totalAmount)}원", 
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = {
-                                val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                                val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
-                                DataManager.receipts.add(receipt)
-                                DataManager.saveReceipts()
-                                
-                                DataManager.clearTable(tableId)
-                                navController.popBackStack()
-                            }, 
-                            modifier = Modifier.weight(1f).height(50.dp).padding(end = 4.dp)
-                        ) {
-                            Text("지급완료")
-                        }
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = {
+                        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                        val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
+                        DataManager.receipts.add(receipt)
+                        DataManager.saveReceipts()
                         
-                        Button(
-                            onClick = onCancel, 
-                            modifier = Modifier.weight(1f).height(50.dp).padding(start = 4.dp), 
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) { 
-                            Text("취소") 
-                        }
+                        DataManager.clearTable(tableId)
+                        navController.popBackStack()
+                    }, modifier = Modifier.weight(1f).height(55.dp).padding(end = 4.dp)) {
+                        Text("지급완료")
+                    }
+                    
+                    Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp).padding(start = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
+                        Text("취소") 
                     }
                 }
             }
@@ -305,9 +285,13 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
 fun AdminLoginScreen(navController: androidx.navigation.NavController) {
     var password by remember { mutableStateOf("") }
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("관리자 비밀번호를 입력하세요 (기본: 1234)", style = MaterialTheme.typography.titleLarge)
+        Text("관리자 비밀번호를 입력하세요", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(value = password, onValueChange = { password = it })
+        OutlinedTextField(
+            value = password, 
+            onValueChange = { password = it },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = {
             if (password == DataManager.adminPassword) {
@@ -327,6 +311,8 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     
     var selectedMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var expandedMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val selectedDate = Date(selectedMillis)
     val selectedDayStr = sdfDay.format(selectedDate)
@@ -350,25 +336,12 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         }
 
         Dialog(onDismissRequest = { showDatePicker = false }) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight()
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Box(modifier = Modifier.height(450.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                        DatePicker(
-                            state = datePickerState,
-                            showModeToggle = false,
-                            title = { Text("날짜 선택") },
-                            headline = { Text("조회할 날짜를 선택하세요") },
-                            modifier = Modifier.height(500.dp) 
-                        )
+            Surface(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().height(400.dp)) {
+                Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        DatePicker(state = datePickerState, showModeToggle = false, title = { }, headline = { })
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { showDatePicker = false }) { Text("닫기") }
                     }
                 }
@@ -377,21 +350,32 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { showDatePicker = true }) {
                 Text(text = "📅 $displayDateStr", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
             }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Box {
+                IconButton(onClick = { 
+                    expandedMenu = true
+                    Toast.makeText(context, "브랜치: ilhyeon2-patch-0731", Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(32.dp))
+                }
+                DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
+                    DropdownMenuItem(text = { Text("메뉴 관리") }, onClick = { expandedMenu = false; navController.navigate("menu_settings") })
+                    DropdownMenuItem(text = { Text("비밀번호 변경") }, onClick = { expandedMenu = false; navController.navigate("password_settings") })
+                }
+            }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         
-        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            
-            Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
-                
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(bottom = 90.dp).verticalScroll(rememberScrollState())
-                ) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
                             Text("월별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
@@ -399,9 +383,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                             Text("${numFormat.format(monthlyTotal)}원", color = Color.White, style = MaterialTheme.typography.headlineMedium)
                         }
                     }
-                    
                     Spacer(modifier = Modifier.height(16.dp))
-                    
                     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
                             Text("일별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
@@ -410,20 +392,14 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                         }
                     }
                 }
-                
-                Button(
-                    onClick = { navController.navigate("main") { popUpTo(0) } }, 
-                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(60.dp)
-                ) {
-                    Text("메인으로 돌아가기", style = MaterialTheme.typography.titleMedium)
+                Button(onClick = { navController.navigate("main") { popUpTo(0) } }, modifier = Modifier.fillMaxWidth().height(55.dp).padding(top = 8.dp)) {
+                    Text("메인으로 돌아가기")
                 }
             }
             
             LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) {
                 if (dailyReceipts.isEmpty()) {
-                    item { 
-                        Text("해당 날짜의 정산 내역이 없습니다.", modifier = Modifier.padding(16.dp), color = Color.Gray) 
-                    }
+                    item { Text("해당 날짜의 정산 내역이 없습니다.", modifier = Modifier.padding(16.dp), color = Color.Gray) }
                 } else {
                     items(dailyReceipts) { receipt ->
                         Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -439,6 +415,313 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
+    // 적용 버튼을 눌러야만 원본에 저장되도록 상태 분리
+    var menuList by remember { mutableStateOf(DataManager.menuItems.toList()) }
+    var newMenuName by remember { mutableStateOf("") }
+    var newMenuPrice by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+    // 플로팅 및 위치 변경을 위한 글로벌 상태
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(0f) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, "원복 및 뒤로가기")
+            }
+            Text("메뉴 관리", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            
+            Button(
+                onClick = {
+                    DataManager.menuItems = menuList.toMutableList()
+                    DataManager.saveMenus()
+                    Toast.makeText(context, "메뉴가 성공적으로 적용되었습니다.", Toast.LENGTH_SHORT).show()
+                    navController.popBackStack()
+                }, 
+                modifier = Modifier.height(45.dp)
+            ) {
+                Text("적용")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+            // key를 메모리 주소값으로 설정하여 UI 노드가 데이터 위치를 완벽하게 따라가도록 구성
+            items(
+                count = menuList.size,
+                key = { index -> System.identityHashCode(menuList[index]) }
+            ) { index ->
+                val menu = menuList[index]
+                var priceText by remember(menu) { mutableStateOf(menu.price.toString()) }
+                
+                // 현재 아이템이 드래그 중인지 판단하여 시각적 효과(플로팅) 부여
+                val isDragged = index == draggedIndex
+                val zIndex = if (isDragged) 1f else 0f
+                val elevation = if (isDragged) 12.dp else 2.dp
+                
+                val currentIndex by rememberUpdatedState(index)
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .zIndex(zIndex) // 선택된 카드를 맨 위로
+                        .graphicsLayer {
+                            translationY = if (isDragged) dragOffset else 0f
+                            scaleX = if (isDragged) 1.02f else 1f // 약간 커지는 효과
+                            scaleY = if (isDragged) 1.02f else 1f
+                        },
+                    elevation = CardDefaults.cardElevation(defaultElevation = elevation) // 그림자 진하게
+                ) {
+                    Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "드래그하여 이동",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .padding(end = 8.dp)
+                                .pointerInput(menu) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            draggedIndex = currentIndex
+                                            dragOffset = 0f
+                                        },
+                                        onDragEnd = {
+                                            draggedIndex = null
+                                            dragOffset = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggedIndex = null
+                                            dragOffset = 0f
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffset += dragAmount.y
+                                            
+                                            // 일정 높이(120px) 이상 이동 시 실시간 데이터 스위치
+                                            val threshold = 120f
+                                            val cIdx = draggedIndex ?: return@detectDragGestures
+                                            
+                                            if (dragOffset > threshold && cIdx < menuList.size - 1) {
+                                                val newList = menuList.toMutableList()
+                                                val temp = newList[cIdx]
+                                                newList[cIdx] = newList[cIdx + 1]
+                                                newList[cIdx + 1] = temp
+                                                menuList = newList.toList()
+                                                draggedIndex = cIdx + 1
+                                                dragOffset -= threshold
+                                            } else if (dragOffset < -threshold && cIdx > 0) {
+                                                val newList = menuList.toMutableList()
+                                                val temp = newList[cIdx]
+                                                newList[cIdx] = newList[cIdx - 1]
+                                                newList[cIdx - 1] = temp
+                                                menuList = newList.toList()
+                                                draggedIndex = cIdx - 1
+                                                dragOffset += threshold
+                                            }
+
+                                            // 플로팅 뷰를 따라 리스트가 자동으로 스크롤됨
+                                            coroutineScope.launch {
+                                                listState.scrollBy(dragAmount.y)
+                                            }
+                                        }
+                                    )
+                                }
+                        )
+
+                        // 보조용 화살표 버튼 (유지)
+                        Column {
+                            IconButton(onClick = {
+                                if (index > 0) {
+                                    val newList = menuList.toMutableList()
+                                    val temp = newList[index]
+                                    newList[index] = newList[index - 1]
+                                    newList[index - 1] = temp
+                                    menuList = newList.toList()
+                                    coroutineScope.launch { listState.scrollBy(-150f) }
+                                }
+                            }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.KeyboardArrowUp, "위로")
+                            }
+                            IconButton(onClick = {
+                                if (index < menuList.size - 1) {
+                                    val newList = menuList.toMutableList()
+                                    val temp = newList[index]
+                                    newList[index] = newList[index + 1]
+                                    newList[index + 1] = temp
+                                    menuList = newList.toList()
+                                    coroutineScope.launch { listState.scrollBy(150f) }
+                                }
+                            }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.KeyboardArrowDown, "아래로")
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        Text(menu.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        
+                        OutlinedTextField(
+                            value = priceText,
+                            onValueChange = { 
+                                priceText = it
+                                it.toIntOrNull()?.let { newPrice ->
+                                    val newList = menuList.toMutableList()
+                                    newList[index].price = newPrice
+                                    menuList = newList.toList()
+                                }
+                            },
+                            modifier = Modifier.width(140.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        
+                        IconButton(onClick = {
+                            val newList = menuList.toMutableList()
+                            newList.removeAt(index)
+                            menuList = newList.toList()
+                        }) {
+                            Icon(Icons.Default.Delete, "삭제", tint = Color.Red)
+                        }
+                    }
+                }
+            }
+        }
+        
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = newMenuName,
+                onValueChange = { newMenuName = it },
+                label = { Text("메뉴명") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            OutlinedTextField(
+                value = newMenuPrice,
+                onValueChange = { newMenuPrice = it },
+                label = { Text("가격") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                val price = newMenuPrice.toIntOrNull()
+                if (newMenuName.isNotBlank() && price != null) {
+                    val newList = menuList.toMutableList()
+                    newList.add(MenuItem(newMenuName, price))
+                    menuList = newList.toList()
+                    
+                    newMenuName = ""
+                    newMenuPrice = ""
+                    
+                    coroutineScope.launch { listState.scrollToItem(menuList.size - 1) }
+                }
+            }, modifier = Modifier.height(55.dp)) {
+                Icon(Icons.Default.Add, "추가")
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("추가")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, "뒤로 가기")
+            }
+        }
+        
+        Text("비밀번호 변경", style = MaterialTheme.typography.headlineLarge)
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        // 텍스트 창 크기를 넓게 확보하여 잘림 방지 (weight(1f) 적용)
+        Row(
+            verticalAlignment = Alignment.CenterVertically, 
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(0.9f) 
+        ) {
+            
+            Column(modifier = Modifier.weight(1f).padding(end = 32.dp)) {
+                OutlinedTextField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it },
+                    label = { Text("현재 비밀번호") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), // 가로로 꽉 차게 확장
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("새 비밀번호") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), // 가로로 꽉 차게 확장
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+            
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Button(
+                    onClick = {
+                        if (currentPassword == DataManager.adminPassword) {
+                            if (newPassword.isNotBlank()) {
+                                DataManager.savePassword(newPassword)
+                                message = "비밀번호가 성공적으로 변경되었습니다."
+                                currentPassword = ""
+                                newPassword = ""
+                            } else {
+                                message = "새 비밀번호를 입력해주세요."
+                            }
+                        } else {
+                            message = "현재 비밀번호가 일치하지 않습니다."
+                        }
+                    }, 
+                    modifier = Modifier.width(120.dp).height(50.dp)
+                ) {
+                    Text("확인")
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = { navController.popBackStack() }, 
+                    modifier = Modifier.width(120.dp).height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("취소")
+                }
+            }
+        }
+        
+        if (message.isNotBlank()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(message, color = if (message.contains("성공")) Color.Blue else Color.Red, style = MaterialTheme.typography.titleMedium)
         }
     }
 }

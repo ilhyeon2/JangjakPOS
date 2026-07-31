@@ -8,7 +8,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class MenuItem(val name: String, var price: Int)
+// 메뉴 정보 수정이 가능하도록 var로 변경
+data class MenuItem(var name: String, var price: Int)
 data class OrderItem(val menuItem: MenuItem, var quantity: Int)
 data class Table(val id: Int, var orders: MutableList<OrderItem> = mutableListOf())
 data class Receipt(val date: String, val totalAmount: Int, val items: List<OrderItem>)
@@ -18,6 +19,7 @@ object DataManager {
     private lateinit var receiptFile: File
     private lateinit var menuFile: File
     private lateinit var dateFile: File
+    private lateinit var passwordFile: File // 비밀번호 저장용 파일 추가
     private val gson = Gson()
 
     var tables = List(7) { Table(it + 1) }
@@ -32,10 +34,19 @@ object DataManager {
         receiptFile = File(dir, "receipts.json")
         menuFile = File(dir, "menus.json")
         dateFile = File(dir, "last_date.txt")
+        passwordFile = File(dir, "password.txt") 
         loadData()
     }
 
     private fun loadData() {
+        // 비밀번호 로드 (없으면 기본값 1234 생성)
+        if (passwordFile.exists()) {
+            adminPassword = passwordFile.readText()
+        } else {
+            adminPassword = "1234"
+            savePassword(adminPassword)
+        }
+
         if (menuFile.exists()) {
             val type = object : TypeToken<MutableList<MenuItem>>() {}.type
             menuItems = gson.fromJson(menuFile.readText(), type) ?: mutableListOf()
@@ -83,6 +94,12 @@ object DataManager {
     fun saveTables() { dataFile.writeText(gson.toJson(tables)) }
     fun saveReceipts() { receiptFile.writeText(gson.toJson(receipts)) }
     fun saveMenus() { menuFile.writeText(gson.toJson(menuItems)) }
+    
+    // 비밀번호 저장 함수
+    fun savePassword(newPwd: String) { 
+        adminPassword = newPwd
+        passwordFile.writeText(adminPassword) 
+    }
     
     fun clearTable(tableId: Int) {
         tables.find { it.id == tableId }?.orders?.clear()
