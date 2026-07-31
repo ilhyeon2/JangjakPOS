@@ -8,7 +8,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// 메뉴 정보 수정이 가능하도록 var로 변경
 data class MenuItem(var name: String, var price: Int)
 data class OrderItem(val menuItem: MenuItem, var quantity: Int)
 data class Table(val id: Int, var orders: MutableList<OrderItem> = mutableListOf())
@@ -19,10 +18,11 @@ object DataManager {
     private lateinit var receiptFile: File
     private lateinit var menuFile: File
     private lateinit var dateFile: File
-    private lateinit var passwordFile: File // 비밀번호 저장용 파일 추가
+    private lateinit var passwordFile: File 
     private val gson = Gson()
 
-    var tables = List(7) { Table(it + 1) }
+    // 테이블 기본값을 8개로 설정
+    var tables = List(8) { Table(it + 1) }
     var receipts = mutableListOf<Receipt>()
     var menuItems = mutableListOf<MenuItem>()
     var adminPassword = "1234"
@@ -39,7 +39,6 @@ object DataManager {
     }
 
     private fun loadData() {
-        // 비밀번호 로드 (없으면 기본값 1234 생성)
         if (passwordFile.exists()) {
             adminPassword = passwordFile.readText()
         } else {
@@ -63,10 +62,25 @@ object DataManager {
             )
             saveMenus()
         }
+        
         if (dataFile.exists()) {
             val type = object : TypeToken<List<Table>>() {}.type
-            tables = gson.fromJson(dataFile.readText(), type) ?: List(7) { Table(it + 1) }
+            val loadedTables: List<Table>? = gson.fromJson(dataFile.readText(), type)
+            
+            if (loadedTables != null) {
+                val mutableTables = loadedTables.toMutableList()
+                // 기존 저장된 데이터가 7개일 경우 8개로 안전하게 확장하여 에러 방지
+                while (mutableTables.size < 8) {
+                    mutableTables.add(Table(mutableTables.size + 1))
+                }
+                tables = mutableTables.toList()
+            } else {
+                tables = List(8) { Table(it + 1) }
+            }
+        } else {
+            tables = List(8) { Table(it + 1) }
         }
+        
         if (receiptFile.exists()) {
             val type = object : TypeToken<MutableList<Receipt>>() {}.type
             receipts = gson.fromJson(receiptFile.readText(), type) ?: mutableListOf()
@@ -95,7 +109,6 @@ object DataManager {
     fun saveReceipts() { receiptFile.writeText(gson.toJson(receipts)) }
     fun saveMenus() { menuFile.writeText(gson.toJson(menuItems)) }
     
-    // 비밀번호 저장 함수
     fun savePassword(newPwd: String) { 
         adminPassword = newPwd
         passwordFile.writeText(adminPassword) 
