@@ -428,7 +428,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                 
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        
+                       // 확인 필요
                         // 1. 드래그 앤 드롭 제스처가 적용된 핸들 아이콘 (≡)
                         Icon(
                             imageVector = Icons.Default.Menu,
