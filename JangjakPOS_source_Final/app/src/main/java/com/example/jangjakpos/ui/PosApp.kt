@@ -1,5 +1,6 @@
 package com.example.jangjakpos.ui
 
+import android.content.res.Configuration
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -54,9 +56,11 @@ fun PosApp() {
     }
 }
 
-// 1. 메인 화면 (세로 모드 2열, 우측 상단 관리자 아이콘)
 @Composable
 fun MainScreen(navController: androidx.navigation.NavController) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     var currentTime by remember { mutableStateOf(dateFormat.format(Date())) }
@@ -77,17 +81,20 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             Text("장작떼기 POS", style = MaterialTheme.typography.headlineMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(currentTime, style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.width(8.dp))
-                // 세로 모드에 맞게 우측 상단 톱니바퀴로 관리자 진입
+                Spacer(modifier = Modifier.width(16.dp))
+                // 가로/세로 상관없이 우측 상단 톱니바퀴로 관리자 페이지 진입
                 IconButton(onClick = { navController.navigate("admin_login") }) {
-                    Icon(Icons.Default.Settings, contentDescription = "관리자 페이지")
+                    Icon(Icons.Default.Settings, contentDescription = "관리자 페이지", modifier = Modifier.size(28.dp))
                 }
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
         
+        // 기기 방향에 따라 열 개수 자동 조절 (가로: 4열, 세로: 2열)
+        val columnsCount = if (isLandscape) 4 else 2
+        
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2), // 좁은 화면을 위한 2열 그리드
+            columns = GridCells.Fixed(columnsCount),
             modifier = Modifier.weight(1f)
         ) {
             items(7) { index ->
@@ -137,9 +144,11 @@ fun MainScreen(navController: androidx.navigation.NavController) {
     }
 }
 
-// 2. 주문 화면 (상단: 주문 내역, 하단: 메뉴판)
 @Composable
 fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    
     var showCheckout by remember { mutableStateOf(false) }
     val table = DataManager.tables.find { it.id == tableId } ?: return
     var updateTrigger by remember { mutableStateOf(0) }
@@ -149,115 +158,176 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 상단: 테이블 번호 및 주문 내역
-        Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
-        Card(
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
-                val dummy = updateTrigger
-                items(table.orders.size) { index ->
-                    val order = table.orders[index]
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
-                        Text("${order.menuItem.price * order.quantity}원", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                    }
-                }
-            }
-        }
-        
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Button(onClick = { navController.popBackStack() }, modifier = Modifier.weight(1f).height(50.dp).padding(end = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("뒤로 가기") }
-            Button(onClick = { showCheckout = true }, modifier = Modifier.weight(1f).height(50.dp).padding(start = 4.dp)) { Text("정산") }
-        }
-        
-        // 하단: 메뉴 버튼 그리드
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 100.dp), 
-            modifier = Modifier.weight(1.5f)
-        ) {
-            items(DataManager.menuItems.size) { index ->
-                val menu = DataManager.menuItems[index]
-                Card(modifier = Modifier.padding(4.dp)) {
-                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(menu.name, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-                        Text("${menu.price}원", style = MaterialTheme.typography.bodySmall)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                            Button(onClick = {
-                                val existing = table.orders.find { it.menuItem.name == menu.name }
-                                if (existing != null && existing.quantity > 0) {
-                                    existing.quantity--
-                                    if(existing.quantity == 0) table.orders.remove(existing)
-                                }
-                                DataManager.saveTables()
-                                updateTrigger++
-                            }, modifier = Modifier.weight(1f).padding(end = 2.dp), contentPadding = PaddingValues(0.dp)) { Text("-") }
-                            
-                            Button(onClick = {
-                                val existing = table.orders.find { it.menuItem.name == menu.name }
-                                if (existing != null) existing.quantity++
-                                else table.orders.add(OrderItem(menu, 1))
-                                DataManager.saveTables()
-                                updateTrigger++
-                            }, modifier = Modifier.weight(1f).padding(start = 2.dp), contentPadding = PaddingValues(0.dp)) { Text("+") }
+    if (isLandscape) {
+        // 가로 모드: 좌우 분할
+        Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+                Card(
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                        val dummy = updateTrigger
+                        items(table.orders.size) { index ->
+                            val order = table.orders[index]
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                                Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge)
+                                Text("${order.menuItem.price * order.quantity}원", style = MaterialTheme.typography.bodyLarge)
+                            }
                         }
                     }
                 }
+                Button(onClick = { showCheckout = true }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("정산") }
+                Button(onClick = { navController.popBackStack() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("뒤로 가기") }
+            }
+            
+            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 130.dp), modifier = Modifier.weight(2f)) {
+                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
+            }
+        }
+    } else {
+        // 세로 모드: 상하 분할
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+            Card(
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    val dummy = updateTrigger
+                    items(table.orders.size) { index ->
+                        val order = table.orders[index]
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
+                            Text("${order.menuItem.price * order.quantity}원", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+                        }
+                    }
+                }
+            }
+            
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Button(onClick = { navController.popBackStack() }, modifier = Modifier.weight(1f).height(50.dp).padding(end = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("뒤로 가기") }
+                Button(onClick = { showCheckout = true }, modifier = Modifier.weight(1f).height(50.dp).padding(start = 4.dp)) { Text("정산") }
+            }
+            
+            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 100.dp), modifier = Modifier.weight(1.5f)) {
+                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
             }
         }
     }
 }
 
-// 3. 정산 화면 (1열 세로 스크롤 및 하단 고정 버튼)
+// 공통 메뉴 버튼 컴포넌트
+@Composable
+fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
+    val menu = DataManager.menuItems[index]
+    Card(modifier = Modifier.padding(4.dp)) {
+        Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(menu.name, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            Text("${menu.price}원", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = {
+                    val existing = table.orders.find { it.menuItem.name == menu.name }
+                    if (existing != null && existing.quantity > 0) {
+                        existing.quantity--
+                        if(existing.quantity == 0) table.orders.remove(existing)
+                    }
+                    DataManager.saveTables()
+                    onUpdate()
+                }, modifier = Modifier.weight(1f).padding(end = 2.dp), contentPadding = PaddingValues(0.dp)) { Text("-") }
+                
+                Button(onClick = {
+                    val existing = table.orders.find { it.menuItem.name == menu.name }
+                    if (existing != null) existing.quantity++
+                    else table.orders.add(OrderItem(menu, 1))
+                    DataManager.saveTables()
+                    onUpdate()
+                }, modifier = Modifier.weight(1f).padding(start = 2.dp), contentPadding = PaddingValues(0.dp)) { Text("+") }
+            }
+        }
+    }
+}
+
 @Composable
 fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavController, onCancel: () -> Unit) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    
     val table = DataManager.tables.find { it.id == tableId } ?: return
     val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
-    
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("정산 내역", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 1열 스크롤 리스트
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            items(table.orders) { order ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(order.menuItem.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Text("x ${order.quantity}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(50.dp), textAlign = TextAlign.Center)
-                    Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+        if (isLandscape) {
+            // 가로 모드: 3분할 
+            val leftItems = table.orders.take(6)
+            val centerItems = table.orders.drop(6).take(6)
+            val rightItems = table.orders.drop(12) 
+            
+            Row(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    leftItems.forEach { order -> CheckoutItemRow(order, numFormat) }
                 }
-                Divider(color = Color.LightGray, thickness = 0.5.dp)
+                Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                    centerItems.forEach { order -> CheckoutItemRow(order, numFormat) }
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                    rightItems.forEach { order -> CheckoutItemRow(order, numFormat) }
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(16.dp))
+                    CheckoutActionButtons(tableId, totalAmount, table, navController, onCancel)
+                }
+            }
+        } else {
+            // 세로 모드: 1열 리스트 및 하단 고정 버튼
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                items(table.orders) { order ->
+                    CheckoutItemRow(order, numFormat)
+                    Divider(color = Color.LightGray, thickness = 0.5.dp)
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
+                Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium)
+                Spacer(modifier = Modifier.height(16.dp))
+                CheckoutActionButtons(tableId, totalAmount, table, navController, onCancel)
             }
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // 하단 합계 및 버튼 고정
-        Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
-            Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp).padding(end = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
-                    Text("취소") 
-                }
-                Button(onClick = {
-                    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                    val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
-                    DataManager.receipts.add(receipt)
-                    DataManager.saveReceipts()
-                    
-                    DataManager.clearTable(tableId)
-                    navController.popBackStack()
-                }, modifier = Modifier.weight(1f).height(55.dp).padding(start = 8.dp)) {
-                    Text("지급완료")
-                }
-            }
+    }
+}
+
+@Composable
+fun CheckoutItemRow(order: OrderItem, numFormat: NumberFormat) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
+        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+    }
+}
+
+@Composable
+fun CheckoutActionButtons(tableId: Int, totalAmount: Int, table: Table, navController: androidx.navigation.NavController, onCancel: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp).padding(end = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
+            Text("취소") 
+        }
+        Button(onClick = {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+            val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
+            DataManager.receipts.add(receipt)
+            DataManager.saveReceipts()
+            DataManager.clearTable(tableId)
+            navController.popBackStack()
+        }, modifier = Modifier.weight(1f).height(55.dp).padding(start = 4.dp)) {
+            Text("지급완료")
         }
     }
 }
@@ -272,10 +342,10 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
             value = password, 
             onValueChange = { password = it },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(0.8f)
         )
         Spacer(modifier = Modifier.height(24.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(modifier = Modifier.fillMaxWidth(0.8f), horizontalArrangement = Arrangement.SpaceBetween) {
              Button(onClick = { navController.popBackStack() }, modifier = Modifier.weight(1f).height(50.dp).padding(end = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) {
                 Text("취소")
             }
@@ -290,10 +360,12 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
     }
 }
 
-// 4. 관리자 화면 (상하 분할: 상단 매출/설정, 하단 정산 내역)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminScreen(navController: androidx.navigation.NavController) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
     val sdfDay = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val sdfMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault())
@@ -302,6 +374,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     var selectedMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var expandedMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val selectedDate = Date(selectedMillis)
     val selectedDayStr = sdfDay.format(selectedDate)
@@ -316,10 +389,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
         LaunchedEffect(datePickerState.selectedDateMillis) {
             datePickerState.selectedDateMillis?.let {
-                if (it != selectedMillis) {
-                    selectedMillis = it
-                    showDatePicker = false
-                }
+                if (it != selectedMillis) { selectedMillis = it; showDatePicker = false }
             }
         }
         Dialog(onDismissRequest = { showDatePicker = false }) {
@@ -337,16 +407,16 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 상단 헤더: 뒤로가기(좌), 날짜(중), 설정(우)
+        // 공통 헤더
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "메인으로")
+                Icon(Icons.Default.ArrowBack, contentDescription = "메인으로 돌아가기")
             }
             TextButton(onClick = { showDatePicker = true }) {
                 Text(text = "📅 $displayDateStr", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
             }
             Box {
-                IconButton(onClick = { expandedMenu = true }) {
+                IconButton(onClick = { expandedMenu = true; Toast.makeText(context, "브랜치: ilhyeon2-patch-0731", Toast.LENGTH_SHORT).show() }) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(28.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
@@ -358,50 +428,72 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 상단: 매출 카드 (가로 나열)
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Card(modifier = Modifier.weight(1f).padding(end = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
-                Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("월별 누적 매출", color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("${numFormat.format(monthlyTotal)}원", color = Color.White, style = MaterialTheme.typography.titleMedium)
+        if (isLandscape) {
+            // 가로 모드: 좌우 분할
+            Row(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
+                    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        AdminSalesCard("월별 누적 매출 합계 :", monthlyTotal, numFormat)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        AdminSalesCard("일별 누적 매출 합계 :", dailyTotal, numFormat)
+                    }
+                }
+                
+                LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) {
+                    if (dailyReceipts.isEmpty()) {
+                        item { Text("해당 날짜의 정산 내역이 없습니다.", modifier = Modifier.padding(16.dp), color = Color.Gray) }
+                    } else {
+                        items(dailyReceipts) { receipt -> AdminReceiptCard(receipt, numFormat) }
+                    }
                 }
             }
-            Card(modifier = Modifier.weight(1f).padding(start = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
-                Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("일별 누적 매출", color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("${numFormat.format(dailyTotal)}원", color = Color.White, style = MaterialTheme.typography.titleMedium)
+        } else {
+            // 세로 모드: 상하 분할
+            Row(modifier = Modifier.fillMaxWidth()) {
+                AdminSalesCard("월별 누적 매출", monthlyTotal, numFormat, modifier = Modifier.weight(1f).padding(end = 4.dp))
+                AdminSalesCard("일별 누적 매출", dailyTotal, numFormat, modifier = Modifier.weight(1f).padding(start = 4.dp))
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text("정산 내역", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (dailyReceipts.isEmpty()) {
+                    item { Text("해당 날짜의 정산 내역이 없습니다.", modifier = Modifier.padding(16.dp), color = Color.Gray, textAlign = TextAlign.Center) }
+                } else {
+                    items(dailyReceipts) { receipt -> AdminReceiptCard(receipt, numFormat) }
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        Divider()
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // 하단: 정산 내역
-        Text("정산 내역", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (dailyReceipts.isEmpty()) {
-                item { Text("해당 날짜의 정산 내역이 없습니다.", modifier = Modifier.padding(16.dp), color = Color.Gray, textAlign = TextAlign.Center) }
-            } else {
-                items(dailyReceipts) { receipt ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(receipt.date, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                Text("${numFormat.format(receipt.totalAmount)}원", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            receipt.items.forEach { item ->
-                                Text("- ${item.menuItem.name} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
+    }
+}
+
+@Composable
+fun AdminSalesCard(title: String, amount: Int, numFormat: NumberFormat, modifier: Modifier = Modifier) {
+    Card(modifier = modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, color = Color.White, style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("${numFormat.format(amount)}원", color = Color.White, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+@Composable
+fun AdminReceiptCard(receipt: Receipt, numFormat: NumberFormat) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(receipt.date, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text("${numFormat.format(receipt.totalAmount)}원", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            receipt.items.forEach { item ->
+                Text("- ${item.menuItem.name} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -410,6 +502,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    
     var menuList by remember { mutableStateOf(DataManager.menuItems.toList()) }
     var newMenuName by remember { mutableStateOf("") }
     var newMenuPrice by remember { mutableStateOf("") }
@@ -423,9 +518,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, "원복 및 뒤로가기")
-            }
+            IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Default.ArrowBack, "원복 및 뒤로가기") }
             Text("메뉴 관리", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             Button(
                 onClick = {
@@ -435,9 +528,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                     navController.popBackStack()
                 }, 
                 modifier = Modifier.height(40.dp)
-            ) {
-                Text("적용")
-            }
+            ) { Text("적용") }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
@@ -473,7 +564,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                             imageVector = Icons.Default.Menu,
                             contentDescription = "이동",
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(32.dp)
                                 .padding(end = 4.dp)
                                 .pointerInput(menu) {
                                     detectDragGestures(
@@ -483,7 +574,6 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                         onDrag = { change, dragAmount ->
                                             change.consume()
                                             dragOffset += dragAmount.y
-                                            
                                             val threshold = 100f
                                             val cIdx = draggedIndex ?: return@detectDragGestures
                                             
@@ -510,7 +600,6 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                 }
                         )
 
-                        // 좁은 세로 화면을 위해 상/하 화살표 아이콘 크기 축소
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             IconButton(onClick = {
                                 if (index > 0) {
@@ -521,9 +610,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     menuList = newList.toList()
                                     coroutineScope.launch { listState.scrollBy(-120f) }
                                 }
-                            }, modifier = Modifier.size(20.dp)) {
-                                Icon(Icons.Default.KeyboardArrowUp, "위로")
-                            }
+                            }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.KeyboardArrowUp, "위로") }
                             IconButton(onClick = {
                                 if (index < menuList.size - 1) {
                                     val newList = menuList.toMutableList()
@@ -533,13 +620,10 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     menuList = newList.toList()
                                     coroutineScope.launch { listState.scrollBy(120f) }
                                 }
-                            }, modifier = Modifier.size(20.dp)) {
-                                Icon(Icons.Default.KeyboardArrowDown, "아래로")
-                            }
+                            }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.KeyboardArrowDown, "아래로") }
                         }
                         
                         Spacer(modifier = Modifier.width(8.dp))
-                        
                         Text(menu.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         
                         OutlinedTextField(
@@ -552,7 +636,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     menuList = newList.toList()
                                 }
                             },
-                            modifier = Modifier.width(90.dp), // 세로 모드에 맞춰 가격 입력창 축소
+                            modifier = Modifier.width(100.dp),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
@@ -562,9 +646,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                             val newList = menuList.toMutableList()
                             newList.removeAt(index)
                             menuList = newList.toList()
-                        }, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Default.Delete, "삭제", tint = Color.Red)
-                        }
+                        }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Delete, "삭제", tint = Color.Red) }
                     }
                 }
             }
@@ -572,25 +654,12 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
         
         Divider(modifier = Modifier.padding(vertical = 8.dp))
         
-        // 좁은 화면을 위해 신규 메뉴 추가도 위(이름), 아래(가격+버튼)로 분할
-        Column(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = newMenuName,
-                onValueChange = { newMenuName = it },
-                label = { Text("새 메뉴명") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+        // 반응형 입력 폼 (가로면 한 줄, 세로면 두 줄)
+        if (isLandscape) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = newMenuPrice,
-                    onValueChange = { newMenuPrice = it },
-                    label = { Text("가격") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
+                OutlinedTextField(value = newMenuName, onValueChange = { newMenuName = it }, label = { Text("메뉴명") }, modifier = Modifier.weight(1f), singleLine = true)
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(value = newMenuPrice, onValueChange = { newMenuPrice = it }, label = { Text("가격") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = {
                     val price = newMenuPrice.toIntOrNull()
@@ -598,12 +667,32 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                         val newList = menuList.toMutableList()
                         newList.add(MenuItem(newMenuName, price))
                         menuList = newList.toList()
-                        newMenuName = ""
-                        newMenuPrice = ""
+                        newMenuName = ""; newMenuPrice = ""
                         coroutineScope.launch { listState.scrollToItem(menuList.size - 1) }
                     }
                 }, modifier = Modifier.height(55.dp)) {
                     Icon(Icons.Default.Add, "추가")
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("추가")
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(value = newMenuName, onValueChange = { newMenuName = it }, label = { Text("새 메뉴명") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = newMenuPrice, onValueChange = { newMenuPrice = it }, label = { Text("가격") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = {
+                        val price = newMenuPrice.toIntOrNull()
+                        if (newMenuName.isNotBlank() && price != null) {
+                            val newList = menuList.toMutableList()
+                            newList.add(MenuItem(newMenuName, price))
+                            menuList = newList.toList()
+                            newMenuName = ""; newMenuPrice = ""
+                            coroutineScope.launch { listState.scrollToItem(menuList.size - 1) }
+                        }
+                    }, modifier = Modifier.height(55.dp)) { Icon(Icons.Default.Add, "추가") }
                 }
             }
         }
@@ -613,70 +702,54 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, "뒤로 가기")
-            }
+            IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Default.ArrowBack, "뒤로 가기") }
         }
         
         Text("비밀번호 변경", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(48.dp))
         
-        // 5. 세로 모드에 맞게 입력창과 버튼을 세로로 꽉 차게 배치
-        Column(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = currentPassword,
-                onValueChange = { currentPassword = it },
-                label = { Text("현재 비밀번호") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(
-                value = newPassword,
-                onValueChange = { newPassword = it },
-                label = { Text("새 비밀번호") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Button(
-                onClick = { navController.popBackStack() }, 
-                modifier = Modifier.weight(1f).height(50.dp).padding(end = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("취소")
+        if (isLandscape) {
+            // 가로 모드: 좌우 배치
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth(0.9f)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 32.dp)) {
+                    OutlinedTextField(value = currentPassword, onValueChange = { currentPassword = it }, label = { Text("현재 비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(value = newPassword, onValueChange = { newPassword = it }, label = { Text("새 비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(onClick = {
+                        if (currentPassword == DataManager.adminPassword) {
+                            if (newPassword.isNotBlank()) { DataManager.savePassword(newPassword); message = "비밀번호가 성공적으로 변경되었습니다."; currentPassword = ""; newPassword = "" } else { message = "새 비밀번호를 입력해주세요." }
+                        } else { message = "현재 비밀번호가 일치하지 않습니다." }
+                    }, modifier = Modifier.width(120.dp).height(50.dp)) { Text("확인") }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { navController.popBackStack() }, modifier = Modifier.width(120.dp).height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("취소") }
+                }
             }
-            
-            Button(
-                onClick = {
+        } else {
+            // 세로 모드: 상하 스택
+            Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(value = currentPassword, onValueChange = { currentPassword = it }, label = { Text("현재 비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(value = newPassword, onValueChange = { newPassword = it }, label = { Text("새 비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+            Spacer(modifier = Modifier.height(32.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Button(onClick = { navController.popBackStack() }, modifier = Modifier.weight(1f).height(50.dp).padding(end = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("취소") }
+                Button(onClick = {
                     if (currentPassword == DataManager.adminPassword) {
-                        if (newPassword.isNotBlank()) {
-                            DataManager.savePassword(newPassword)
-                            message = "비밀번호가 성공적으로 변경되었습니다."
-                            currentPassword = ""
-                            newPassword = ""
-                        } else {
-                            message = "새 비밀번호를 입력해주세요."
-                        }
-                    } else {
-                        message = "현재 비밀번호가 일치하지 않습니다."
-                    }
-                }, 
-                modifier = Modifier.weight(1f).height(50.dp).padding(start = 8.dp)
-            ) {
-                Text("확인")
+                        if (newPassword.isNotBlank()) { DataManager.savePassword(newPassword); message = "비밀번호가 성공적으로 변경되었습니다."; currentPassword = ""; newPassword = "" } else { message = "새 비밀번호를 입력해주세요." }
+                    } else { message = "현재 비밀번호가 일치하지 않습니다." }
+                }, modifier = Modifier.weight(1f).height(50.dp).padding(start = 8.dp)) { Text("확인") }
             }
         }
         
