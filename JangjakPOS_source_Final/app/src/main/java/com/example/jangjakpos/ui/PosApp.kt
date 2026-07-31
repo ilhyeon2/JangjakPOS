@@ -1,6 +1,7 @@
 package com.example.jangjakpos.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -16,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -38,8 +40,8 @@ fun PosApp() {
         }
         composable("admin_login") { AdminLoginScreen(navController) }
         composable("admin") { AdminScreen(navController) }
-        composable("menu_settings") { MenuSettingsScreen(navController) } // 메뉴 설정 화면 추가
-        composable("password_settings") { PasswordSettingsScreen(navController) } // 비밀번호 변경 화면 추가
+        composable("menu_settings") { MenuSettingsScreen(navController) }
+        composable("password_settings") { PasswordSettingsScreen(navController) }
     }
 }
 
@@ -166,7 +168,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             columns = GridCells.Adaptive(minSize = 130.dp), 
             modifier = Modifier.weight(2f)
         ) {
-            // DataManager.menuItems 가 변경된 순서 그대로 출력됨
             items(DataManager.menuItems.size) { index ->
                 val menu = DataManager.menuItems[index]
                 Card(modifier = Modifier.padding(4.dp)) {
@@ -297,7 +298,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     
     var selectedMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var expandedMenu by remember { mutableStateOf(false) } // 설정 드롭다운 메뉴 상태
+    var expandedMenu by remember { mutableStateOf(false) }
 
     val selectedDate = Date(selectedMillis)
     val selectedDayStr = sdfDay.format(selectedDate)
@@ -321,18 +322,10 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         }
 
         Dialog(onDismissRequest = { showDatePicker = false }) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth().height(400.dp)
-            ) {
+            Surface(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().height(400.dp)) {
                 Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                     Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        DatePicker(
-                            state = datePickerState,
-                            showModeToggle = false,
-                            title = { },
-                            headline = { }
-                        )
+                        DatePicker(state = datePickerState, showModeToggle = false, title = { }, headline = { })
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { showDatePicker = false }) { Text("닫기") }
@@ -343,7 +336,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 우측 상단: 날짜 선택 버튼 및 설정(⚙️) 아이콘 배치
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { showDatePicker = true }) {
                 Text(text = "📅 $displayDateStr", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
@@ -355,24 +347,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 IconButton(onClick = { expandedMenu = true }) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(32.dp))
                 }
-                DropdownMenu(
-                    expanded = expandedMenu,
-                    onDismissRequest = { expandedMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("메뉴 관리") },
-                        onClick = { 
-                            expandedMenu = false
-                            navController.navigate("menu_settings") 
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("비밀번호 변경") },
-                        onClick = { 
-                            expandedMenu = false
-                            navController.navigate("password_settings") 
-                        }
-                    )
+                DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
+                    DropdownMenuItem(text = { Text("메뉴 관리") }, onClick = { expandedMenu = false; navController.navigate("menu_settings") })
+                    DropdownMenuItem(text = { Text("비밀번호 변경") }, onClick = { expandedMenu = false; navController.navigate("password_settings") })
                 }
             }
         }
@@ -380,9 +357,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(8.dp))
         
         Row(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)
-            ) {
+            Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
@@ -391,9 +366,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                             Text("${numFormat.format(monthlyTotal)}원", color = Color.White, style = MaterialTheme.typography.headlineMedium)
                         }
                     }
-                    
                     Spacer(modifier = Modifier.height(16.dp))
-                    
                     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
                             Text("일별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
@@ -402,20 +375,14 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                         }
                     }
                 }
-                
-                Button(
-                    onClick = { navController.navigate("main") { popUpTo(0) } }, 
-                    modifier = Modifier.fillMaxWidth().height(55.dp).padding(top = 8.dp)
-                ) {
+                Button(onClick = { navController.navigate("main") { popUpTo(0) } }, modifier = Modifier.fillMaxWidth().height(55.dp).padding(top = 8.dp)) {
                     Text("메인으로 돌아가기")
                 }
             }
             
             LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp)) {
                 if (dailyReceipts.isEmpty()) {
-                    item { 
-                        Text("해당 날짜의 정산 내역이 없습니다.", modifier = Modifier.padding(16.dp), color = Color.Gray) 
-                    }
+                    item { Text("해당 날짜의 정산 내역이 없습니다.", modifier = Modifier.padding(16.dp), color = Color.Gray) }
                 } else {
                     items(dailyReceipts) { receipt ->
                         Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -435,13 +402,11 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     }
 }
 
-// --------------------------------------------------------------------------------
-// [추가된 기능 1] 메뉴 관리 화면 (순서 변경, 수정, 삭제, 추가)
-// --------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
-    var menuList by remember { mutableStateOf(DataManager.menuItems.toMutableList()) }
+    // toList()를 사용하여 Compose가 새로운 리스트 객체로 인식하고 실시간 화면 갱신을 하도록 수정
+    var menuList by remember { mutableStateOf(DataManager.menuItems.toList()) }
     var newMenuName by remember { mutableStateOf("") }
     var newMenuPrice by remember { mutableStateOf("") }
 
@@ -455,68 +420,110 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 메뉴 리스트
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(menuList.size) { index ->
                 val menu = menuList[index]
                 var priceText by remember { mutableStateOf(menu.price.toString()) }
+                var offsetY by remember { mutableStateOf(0f) }
                 
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         
-                        // 1. 순서 변경 버튼 (안정성을 위해 화살표로 대체)
+                        // 1. 드래그 앤 드롭 제스처가 적용된 핸들 아이콘 (≡)
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "드래그하여 이동",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .padding(end = 8.dp)
+                                .pointerInput(Unit) {
+                                    detectDragGestures(
+                                        onDragEnd = { offsetY = 0f },
+                                        onDragCancel = { offsetY = 0f },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            offsetY += dragAmount.y
+                                            // 일정 거리(100f) 이상 위나 아래로 드래그하면 순서 변경
+                                            if (offsetY > 100f && index < menuList.size - 1) {
+                                                val newList = menuList.toMutableList()
+                                                val temp = newList[index]
+                                                newList[index] = newList[index + 1]
+                                                newList[index + 1] = temp
+                                                menuList = newList.toList()
+                                                DataManager.menuItems = newList
+                                                DataManager.saveMenus()
+                                                offsetY = 0f 
+                                            } else if (offsetY < -100f && index > 0) {
+                                                val newList = menuList.toMutableList()
+                                                val temp = newList[index]
+                                                newList[index] = newList[index - 1]
+                                                newList[index - 1] = temp
+                                                menuList = newList.toList()
+                                                DataManager.menuItems = newList
+                                                DataManager.saveMenus()
+                                                offsetY = 0f
+                                            }
+                                        }
+                                    )
+                                }
+                        )
+
+                        // 2. 혹시 모를 드래그 불편함을 대비한 상/하 화살표 유지
                         Column {
                             IconButton(onClick = {
                                 if (index > 0) {
-                                    val temp = menuList[index]
-                                    menuList[index] = menuList[index - 1]
-                                    menuList[index - 1] = temp
-                                    DataManager.menuItems = menuList.toMutableList()
+                                    val newList = menuList.toMutableList()
+                                    val temp = newList[index]
+                                    newList[index] = newList[index - 1]
+                                    newList[index - 1] = temp
+                                    menuList = newList.toList() // UI 즉시 갱신
+                                    DataManager.menuItems = newList
                                     DataManager.saveMenus()
-                                    menuList = DataManager.menuItems.toMutableList() // UI 강제 갱신
                                 }
-                            }, modifier = Modifier.size(28.dp)) {
+                            }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.KeyboardArrowUp, "위로")
                             }
                             IconButton(onClick = {
                                 if (index < menuList.size - 1) {
-                                    val temp = menuList[index]
-                                    menuList[index] = menuList[index + 1]
-                                    menuList[index + 1] = temp
-                                    DataManager.menuItems = menuList.toMutableList()
+                                    val newList = menuList.toMutableList()
+                                    val temp = newList[index]
+                                    newList[index] = newList[index + 1]
+                                    newList[index + 1] = temp
+                                    menuList = newList.toList()
+                                    DataManager.menuItems = newList
                                     DataManager.saveMenus()
-                                    menuList = DataManager.menuItems.toMutableList()
                                 }
-                            }, modifier = Modifier.size(28.dp)) {
+                            }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.KeyboardArrowDown, "아래로")
                             }
                         }
                         
                         Spacer(modifier = Modifier.width(16.dp))
                         
-                        // 2. 메뉴명 
                         Text(menu.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                         
-                        // 3. 가격 수정 창
                         OutlinedTextField(
                             value = priceText,
                             onValueChange = { 
                                 priceText = it
                                 it.toIntOrNull()?.let { newPrice ->
-                                    menu.price = newPrice
-                                    DataManager.saveMenus() // 입력 즉시 저장
+                                    val newList = menuList.toMutableList()
+                                    newList[index].price = newPrice
+                                    menuList = newList.toList()
+                                    DataManager.menuItems = newList
+                                    DataManager.saveMenus()
                                 }
                             },
                             modifier = Modifier.width(140.dp),
                             singleLine = true
                         )
                         
-                        // 4. 삭제 버튼
                         IconButton(onClick = {
-                            menuList.removeAt(index)
-                            DataManager.menuItems = menuList.toMutableList()
+                            val newList = menuList.toMutableList()
+                            newList.removeAt(index)
+                            menuList = newList.toList()
+                            DataManager.menuItems = newList
                             DataManager.saveMenus()
-                            menuList = DataManager.menuItems.toMutableList()
                         }) {
                             Icon(Icons.Default.Delete, "삭제", tint = Color.Red)
                         }
@@ -527,7 +534,6 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
         
         Divider(modifier = Modifier.padding(vertical = 8.dp))
         
-        // 신규 메뉴 추가 영역
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = newMenuName,
@@ -548,10 +554,12 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
             Button(onClick = {
                 val price = newMenuPrice.toIntOrNull()
                 if (newMenuName.isNotBlank() && price != null) {
-                    menuList.add(MenuItem(newMenuName, price))
-                    DataManager.menuItems = menuList.toMutableList()
+                    val newList = menuList.toMutableList()
+                    newList.add(MenuItem(newMenuName, price))
+                    menuList = newList.toList() // 실시간 즉각 갱신
+                    DataManager.menuItems = newList
                     DataManager.saveMenus()
-                    menuList = DataManager.menuItems.toMutableList()
+                    
                     newMenuName = ""
                     newMenuPrice = ""
                 }
@@ -564,9 +572,6 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
     }
 }
 
-// --------------------------------------------------------------------------------
-// [추가된 기능 2] 비밀번호 변경 화면
-// --------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
@@ -598,28 +603,43 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
             label = { Text("새 비밀번호") },
             singleLine = true
         )
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Button(onClick = {
-            if (currentPassword == DataManager.adminPassword) {
-                if (newPassword.isNotBlank()) {
-                    DataManager.savePassword(newPassword)
-                    message = "비밀번호가 성공적으로 변경되었습니다."
-                    currentPassword = ""
-                    newPassword = ""
-                } else {
-                    message = "새 비밀번호를 입력해주세요."
-                }
-            } else {
-                message = "현재 비밀번호가 일치하지 않습니다."
-            }
-        }, modifier = Modifier.height(50.dp).fillMaxWidth(0.5f)) {
-            Text("변경하기")
-        }
         
         if (message.isNotBlank()) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(message, color = if (message.contains("성공")) Color.Blue else Color.Red)
+            Text(message, color = if (message.contains("성공")) Color.Blue else Color.Red, style = MaterialTheme.typography.titleMedium)
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        // 3. 비밀번호 변경 화면에 취소 / 확인(변경하기) 버튼 분리 추가
+        Row(modifier = Modifier.fillMaxWidth(0.6f), horizontalArrangement = Arrangement.SpaceBetween) {
+            Button(
+                onClick = { navController.popBackStack() }, 
+                modifier = Modifier.weight(1f).height(50.dp).padding(end = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("취소")
+            }
+            
+            Button(
+                onClick = {
+                    if (currentPassword == DataManager.adminPassword) {
+                        if (newPassword.isNotBlank()) {
+                            DataManager.savePassword(newPassword)
+                            message = "비밀번호가 성공적으로 변경되었습니다."
+                            currentPassword = ""
+                            newPassword = ""
+                        } else {
+                            message = "새 비밀번호를 입력해주세요."
+                        }
+                    } else {
+                        message = "현재 비밀번호가 일치하지 않습니다."
+                    }
+                }, 
+                modifier = Modifier.weight(1f).height(50.dp).padding(start = 8.dp)
+            ) {
+                Text("확인")
+            }
         }
     }
 }
