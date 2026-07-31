@@ -405,7 +405,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
-    // toList()를 사용하여 Compose가 새로운 리스트 객체로 인식하고 실시간 화면 갱신을 하도록 수정
     var menuList by remember { mutableStateOf(DataManager.menuItems.toList()) }
     var newMenuName by remember { mutableStateOf("") }
     var newMenuPrice by remember { mutableStateOf("") }
@@ -428,8 +427,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                 
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                       // 확인 필요
-                        // 1. 드래그 앤 드롭 제스처가 적용된 핸들 아이콘 (≡)
+                        
                         Icon(
                             imageVector = Icons.Default.Menu,
                             contentDescription = "드래그하여 이동",
@@ -443,7 +441,6 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                         onDrag = { change, dragAmount ->
                                             change.consume()
                                             offsetY += dragAmount.y
-                                            // 일정 거리(100f) 이상 위나 아래로 드래그하면 순서 변경
                                             if (offsetY > 100f && index < menuList.size - 1) {
                                                 val newList = menuList.toMutableList()
                                                 val temp = newList[index]
@@ -468,7 +465,6 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                 }
                         )
 
-                        // 2. 혹시 모를 드래그 불편함을 대비한 상/하 화살표 유지
                         Column {
                             IconButton(onClick = {
                                 if (index > 0) {
@@ -476,7 +472,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     val temp = newList[index]
                                     newList[index] = newList[index - 1]
                                     newList[index - 1] = temp
-                                    menuList = newList.toList() // UI 즉시 갱신
+                                    menuList = newList.toList()
                                     DataManager.menuItems = newList
                                     DataManager.saveMenus()
                                 }
@@ -556,7 +552,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                 if (newMenuName.isNotBlank() && price != null) {
                     val newList = menuList.toMutableList()
                     newList.add(MenuItem(newMenuName, price))
-                    menuList = newList.toList() // 실시간 즉각 갱신
+                    menuList = newList.toList()
                     DataManager.menuItems = newList
                     DataManager.saveMenus()
                     
@@ -587,59 +583,67 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
         }
         
         Text("비밀번호 변경", style = MaterialTheme.typography.headlineLarge)
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(48.dp))
         
-        OutlinedTextField(
-            value = currentPassword,
-            onValueChange = { currentPassword = it },
-            label = { Text("현재 비밀번호") },
-            singleLine = true
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        OutlinedTextField(
-            value = newPassword,
-            onValueChange = { newPassword = it },
-            label = { Text("새 비밀번호") },
-            singleLine = true
-        )
-        
-        if (message.isNotBlank()) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(message, color = if (message.contains("성공")) Color.Blue else Color.Red, style = MaterialTheme.typography.titleMedium)
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // 3. 비밀번호 변경 화면에 취소 / 확인(변경하기) 버튼 분리 추가
-        Row(modifier = Modifier.fillMaxWidth(0.6f), horizontalArrangement = Arrangement.SpaceBetween) {
-            Button(
-                onClick = { navController.popBackStack() }, 
-                modifier = Modifier.weight(1f).height(50.dp).padding(end = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("취소")
+        // 텍스트 박스와 버튼을 가로로 배치 (Row 활용)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            
+            // 왼쪽: 비밀번호 입력 박스 2개
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                OutlinedTextField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it },
+                    label = { Text("현재 비밀번호") },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("새 비밀번호") },
+                    singleLine = true
+                )
             }
             
-            Button(
-                onClick = {
-                    if (currentPassword == DataManager.adminPassword) {
-                        if (newPassword.isNotBlank()) {
-                            DataManager.savePassword(newPassword)
-                            message = "비밀번호가 성공적으로 변경되었습니다."
-                            currentPassword = ""
-                            newPassword = ""
+            Spacer(modifier = Modifier.width(32.dp)) // 간격 조정
+            
+            // 오른쪽: 확인, 취소 버튼 2개
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Button(
+                    onClick = {
+                        if (currentPassword == DataManager.adminPassword) {
+                            if (newPassword.isNotBlank()) {
+                                DataManager.savePassword(newPassword)
+                                message = "비밀번호가 성공적으로 변경되었습니다."
+                                currentPassword = ""
+                                newPassword = ""
+                            } else {
+                                message = "새 비밀번호를 입력해주세요."
+                            }
                         } else {
-                            message = "새 비밀번호를 입력해주세요."
+                            message = "현재 비밀번호가 일치하지 않습니다."
                         }
-                    } else {
-                        message = "현재 비밀번호가 일치하지 않습니다."
-                    }
-                }, 
-                modifier = Modifier.weight(1f).height(50.dp).padding(start = 8.dp)
-            ) {
-                Text("확인")
+                    }, 
+                    modifier = Modifier.width(120.dp).height(50.dp)
+                ) {
+                    Text("확인")
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = { navController.popBackStack() }, 
+                    modifier = Modifier.width(120.dp).height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("취소")
+                }
             }
+        }
+        
+        if (message.isNotBlank()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(message, color = if (message.contains("성공")) Color.Blue else Color.Red, style = MaterialTheme.typography.titleMedium)
         }
     }
 }
