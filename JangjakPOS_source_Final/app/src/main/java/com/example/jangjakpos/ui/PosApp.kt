@@ -1,6 +1,5 @@
 package com.example.jangjakpos.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +38,8 @@ fun PosApp() {
         }
         composable("admin_login") { AdminLoginScreen(navController) }
         composable("admin") { AdminScreen(navController) }
+        composable("menu_settings") { MenuSettingsScreen(navController) } // 메뉴 설정 화면 추가
+        composable("password_settings") { PasswordSettingsScreen(navController) } // 비밀번호 변경 화면 추가
     }
 }
 
@@ -45,7 +48,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     var currentTime by remember { mutableStateOf(dateFormat.format(Date())) }
-    
     var updateTrigger by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -134,7 +136,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
 fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) {
     var showCheckout by remember { mutableStateOf(false) }
     val table = DataManager.tables.find { it.id == tableId } ?: return
-    
     var updateTrigger by remember { mutableStateOf(0) }
 
     if (showCheckout) {
@@ -165,6 +166,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             columns = GridCells.Adaptive(minSize = 130.dp), 
             modifier = Modifier.weight(2f)
         ) {
+            // DataManager.menuItems 가 변경된 순서 그대로 출력됨
             items(DataManager.menuItems.size) { index ->
                 val menu = DataManager.menuItems[index]
                 Card(modifier = Modifier.padding(4.dp)) {
@@ -209,91 +211,59 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val rightItems = table.orders.drop(12) 
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("정산 내역", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        Spacer(modifier = Modifier.height(16.dp))
+        Text("정산 내역", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(24.dp))
         
-        // 3구간 사이의 간격을 32dp로 확 넓혀서 명확히 구분되게 만듭니다.
-        Row(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(32.dp)
-        ) {
-            
-            // 1. 좌측 영역
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                items(leftItems.size) { index ->
-                    val order = leftItems[index]
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        // 각 항목에 비율(weight)을 지정해 적절한 간격을 유지하며 정렬합니다.
-                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
-                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+        Row(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                leftItems.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
             
-            // 2. 중앙 영역
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                items(centerItems.size) { index ->
-                    val order = centerItems[index]
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
-                        Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
-                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                centerItems.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
 
-            // 3. 우측 영역 (바닥 버튼 고정)
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                
-                // 스크롤되는 정산 내역 목록
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(bottom = 140.dp)) {
-                    items(rightItems.size) { index ->
-                        val order = rightItems[index]
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(order.menuItem.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f))
-                            Text("x${order.quantity}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
-                            Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
-                        }
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                rightItems.forEach { order ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
+                        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge)
+                        Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
                 
-                // 하단 합계 및 결제 버튼 (우측 열의 가장 하단에 완벽 고정)
-                Column(
-                    modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth().background(MaterialTheme.colorScheme.background),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Divider(modifier = Modifier.padding(bottom = 8.dp))
-                    
-                    Text(
-                        text = "합계: ${numFormat.format(totalAmount)}원", 
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = {
-                                val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                                val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
-                                DataManager.receipts.add(receipt)
-                                DataManager.saveReceipts()
-                                
-                                DataManager.clearTable(tableId)
-                                navController.popBackStack()
-                            }, 
-                            modifier = Modifier.weight(1f).height(50.dp).padding(end = 4.dp)
-                        ) {
-                            Text("지급완료")
-                        }
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = {
+                        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                        val receipt = Receipt(dateFormat.format(Date()), totalAmount, table.orders.toList())
+                        DataManager.receipts.add(receipt)
+                        DataManager.saveReceipts()
                         
-                        Button(
-                            onClick = onCancel, 
-                            modifier = Modifier.weight(1f).height(50.dp).padding(start = 4.dp), 
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) { 
-                            Text("취소") 
-                        }
+                        DataManager.clearTable(tableId)
+                        navController.popBackStack()
+                    }, modifier = Modifier.weight(1f).height(55.dp).padding(end = 4.dp)) {
+                        Text("지급완료")
+                    }
+                    
+                    Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp).padding(start = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
+                        Text("취소") 
                     }
                 }
             }
@@ -305,7 +275,7 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
 fun AdminLoginScreen(navController: androidx.navigation.NavController) {
     var password by remember { mutableStateOf("") }
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("관리자 비밀번호를 입력하세요 (기본: 1234)", style = MaterialTheme.typography.titleLarge)
+        Text("관리자 비밀번호를 입력하세요", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(value = password, onValueChange = { password = it })
         Spacer(modifier = Modifier.height(16.dp))
@@ -327,6 +297,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     
     var selectedMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var expandedMenu by remember { mutableStateOf(false) } // 설정 드롭다운 메뉴 상태
 
     val selectedDate = Date(selectedMillis)
     val selectedDayStr = sdfDay.format(selectedDate)
@@ -352,23 +323,18 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Dialog(onDismissRequest = { showDatePicker = false }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight()
+                modifier = Modifier.fillMaxWidth().height(400.dp)
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Box(modifier = Modifier.height(450.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         DatePicker(
                             state = datePickerState,
                             showModeToggle = false,
-                            title = { Text("날짜 선택") },
-                            headline = { Text("조회할 날짜를 선택하세요") },
-                            modifier = Modifier.height(500.dp) 
+                            title = { },
+                            headline = { }
                         )
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { showDatePicker = false }) { Text("닫기") }
                     }
                 }
@@ -377,21 +343,47 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        // 우측 상단: 날짜 선택 버튼 및 설정(⚙️) 아이콘 배치
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { showDatePicker = true }) {
                 Text(text = "📅 $displayDateStr", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
             }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Box {
+                IconButton(onClick = { expandedMenu = true }) {
+                    Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(32.dp))
+                }
+                DropdownMenu(
+                    expanded = expandedMenu,
+                    onDismissRequest = { expandedMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("메뉴 관리") },
+                        onClick = { 
+                            expandedMenu = false
+                            navController.navigate("menu_settings") 
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("비밀번호 변경") },
+                        onClick = { 
+                            expandedMenu = false
+                            navController.navigate("password_settings") 
+                        }
+                    )
+                }
+            }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         
-        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            
-            Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
-                
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(bottom = 90.dp).verticalScroll(rememberScrollState())
-                ) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E5474))) {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
                             Text("월별 누적 매출 합계 :", color = Color.White, style = MaterialTheme.typography.titleMedium)
@@ -413,9 +405,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 
                 Button(
                     onClick = { navController.navigate("main") { popUpTo(0) } }, 
-                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(60.dp)
+                    modifier = Modifier.fillMaxWidth().height(55.dp).padding(top = 8.dp)
                 ) {
-                    Text("메인으로 돌아가기", style = MaterialTheme.typography.titleMedium)
+                    Text("메인으로 돌아가기")
                 }
             }
             
@@ -439,6 +431,195 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     }
                 }
             }
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------
+// [추가된 기능 1] 메뉴 관리 화면 (순서 변경, 수정, 삭제, 추가)
+// --------------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
+    var menuList by remember { mutableStateOf(DataManager.menuItems.toMutableList()) }
+    var newMenuName by remember { mutableStateOf("") }
+    var newMenuPrice by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, "뒤로 가기")
+            }
+            Text("메뉴 관리", style = MaterialTheme.typography.headlineMedium)
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 메뉴 리스트
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(menuList.size) { index ->
+                val menu = menuList[index]
+                var priceText by remember { mutableStateOf(menu.price.toString()) }
+                
+                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        
+                        // 1. 순서 변경 버튼 (안정성을 위해 화살표로 대체)
+                        Column {
+                            IconButton(onClick = {
+                                if (index > 0) {
+                                    val temp = menuList[index]
+                                    menuList[index] = menuList[index - 1]
+                                    menuList[index - 1] = temp
+                                    DataManager.menuItems = menuList.toMutableList()
+                                    DataManager.saveMenus()
+                                    menuList = DataManager.menuItems.toMutableList() // UI 강제 갱신
+                                }
+                            }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.KeyboardArrowUp, "위로")
+                            }
+                            IconButton(onClick = {
+                                if (index < menuList.size - 1) {
+                                    val temp = menuList[index]
+                                    menuList[index] = menuList[index + 1]
+                                    menuList[index + 1] = temp
+                                    DataManager.menuItems = menuList.toMutableList()
+                                    DataManager.saveMenus()
+                                    menuList = DataManager.menuItems.toMutableList()
+                                }
+                            }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.KeyboardArrowDown, "아래로")
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        // 2. 메뉴명 
+                        Text(menu.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        
+                        // 3. 가격 수정 창
+                        OutlinedTextField(
+                            value = priceText,
+                            onValueChange = { 
+                                priceText = it
+                                it.toIntOrNull()?.let { newPrice ->
+                                    menu.price = newPrice
+                                    DataManager.saveMenus() // 입력 즉시 저장
+                                }
+                            },
+                            modifier = Modifier.width(140.dp),
+                            singleLine = true
+                        )
+                        
+                        // 4. 삭제 버튼
+                        IconButton(onClick = {
+                            menuList.removeAt(index)
+                            DataManager.menuItems = menuList.toMutableList()
+                            DataManager.saveMenus()
+                            menuList = DataManager.menuItems.toMutableList()
+                        }) {
+                            Icon(Icons.Default.Delete, "삭제", tint = Color.Red)
+                        }
+                    }
+                }
+            }
+        }
+        
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        
+        // 신규 메뉴 추가 영역
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = newMenuName,
+                onValueChange = { newMenuName = it },
+                label = { Text("메뉴명") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            OutlinedTextField(
+                value = newMenuPrice,
+                onValueChange = { newMenuPrice = it },
+                label = { Text("가격") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                val price = newMenuPrice.toIntOrNull()
+                if (newMenuName.isNotBlank() && price != null) {
+                    menuList.add(MenuItem(newMenuName, price))
+                    DataManager.menuItems = menuList.toMutableList()
+                    DataManager.saveMenus()
+                    menuList = DataManager.menuItems.toMutableList()
+                    newMenuName = ""
+                    newMenuPrice = ""
+                }
+            }, modifier = Modifier.height(55.dp)) {
+                Icon(Icons.Default.Add, "추가")
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("추가")
+            }
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------
+// [추가된 기능 2] 비밀번호 변경 화면
+// --------------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, "뒤로 가기")
+            }
+        }
+        
+        Text("비밀번호 변경", style = MaterialTheme.typography.headlineLarge)
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        OutlinedTextField(
+            value = currentPassword,
+            onValueChange = { currentPassword = it },
+            label = { Text("현재 비밀번호") },
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = newPassword,
+            onValueChange = { newPassword = it },
+            label = { Text("새 비밀번호") },
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Button(onClick = {
+            if (currentPassword == DataManager.adminPassword) {
+                if (newPassword.isNotBlank()) {
+                    DataManager.savePassword(newPassword)
+                    message = "비밀번호가 성공적으로 변경되었습니다."
+                    currentPassword = ""
+                    newPassword = ""
+                } else {
+                    message = "새 비밀번호를 입력해주세요."
+                }
+            } else {
+                message = "현재 비밀번호가 일치하지 않습니다."
+            }
+        }, modifier = Modifier.height(50.dp).fillMaxWidth(0.5f)) {
+            Text("변경하기")
+        }
+        
+        if (message.isNotBlank()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(message, color = if (message.contains("성공")) Color.Blue else Color.Red)
         }
     }
 }
