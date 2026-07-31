@@ -3,13 +3,16 @@ package com.example.jangjakpos.ui
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,12 +23,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -280,7 +285,11 @@ fun AdminLoginScreen(navController: androidx.navigation.NavController) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text("관리자 비밀번호를 입력하세요", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(value = password, onValueChange = { password = it })
+        OutlinedTextField(
+            value = password, 
+            onValueChange = { password = it },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = {
             if (password == DataManager.adminPassword) {
@@ -301,6 +310,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     var selectedMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var expandedMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val selectedDate = Date(selectedMillis)
     val selectedDayStr = sdfDay.format(selectedDate)
@@ -310,9 +320,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyReceipts = DataManager.receipts.filter { it.date.startsWith(selectedDayStr) }
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }.sumOf { it.totalAmount }
-    
-    // Toast 메시지를 위한 Context
-    val context = LocalContext.current
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
@@ -349,11 +356,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
             Spacer(modifier = Modifier.width(16.dp))
             
             Box {
-                IconButton(onClick = { 
-                    expandedMenu = true
-                    // 디버깅을 위한 Toast 메시지 출력
-                    Toast.makeText(context, "브랜치: ilhyeon2-patch-0731", Toast.LENGTH_SHORT).show()
-                }) {
+                IconButton(onClick = { expandedMenu = true }) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(32.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
@@ -414,21 +417,40 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
+    // 2. 적용/취소 분리: 화면 내부의 상태(menuList)만 변경하고, 적용 버튼을 눌러야만 실제 DataManager에 저장됨
     var menuList by remember { mutableStateOf(DataManager.menuItems.toList()) }
     var newMenuName by remember { mutableStateOf("") }
     var newMenuPrice by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    
+    // 1. 자동 스크롤을 위한 LazyListState 및 CoroutineScope 추가
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, "뒤로 가기")
+            IconButton(onClick = { 
+                // 뒤로가기 누르면 저장하지 않고 원복(취소)
+                navController.popBackStack() 
+            }) {
+                Icon(Icons.Default.ArrowBack, "뒤로 가기 (원복)")
             }
-            Text("메뉴 관리", style = MaterialTheme.typography.headlineMedium)
+            Text("메뉴 관리", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            
+            // 상단 우측 적용 버튼 추가
+            Button(onClick = {
+                DataManager.menuItems = menuList.toMutableList()
+                DataManager.saveMenus()
+                Toast.makeText(context, "메뉴가 성공적으로 반영되었습니다.", Toast.LENGTH_SHORT).show()
+                navController.popBackStack()
+            }, modifier = Modifier.height(45.dp)) {
+                Text("적용")
+            }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
             items(menuList.size) { index ->
                 val menu = menuList[index]
                 var priceText by remember { mutableStateOf(menu.price.toString()) }
@@ -450,24 +472,27 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                         onDrag = { change, dragAmount ->
                                             change.consume()
                                             offsetY += dragAmount.y
-                                            if (offsetY > 100f && index < menuList.size - 1) {
+                                            
+                                            // 드래그 임계치 도달 시 순서 변경 및 "자동 스크롤" 실행
+                                            val dragThreshold = 80f
+                                            if (offsetY > dragThreshold && index < menuList.size - 1) {
                                                 val newList = menuList.toMutableList()
                                                 val temp = newList[index]
                                                 newList[index] = newList[index + 1]
                                                 newList[index + 1] = temp
                                                 menuList = newList.toList()
-                                                DataManager.menuItems = newList
-                                                DataManager.saveMenus()
                                                 offsetY = 0f 
-                                            } else if (offsetY < -100f && index > 0) {
+                                                // 아래로 자동 스크롤
+                                                coroutineScope.launch { listState.scrollBy(100f) }
+                                            } else if (offsetY < -dragThreshold && index > 0) {
                                                 val newList = menuList.toMutableList()
                                                 val temp = newList[index]
                                                 newList[index] = newList[index - 1]
                                                 newList[index - 1] = temp
                                                 menuList = newList.toList()
-                                                DataManager.menuItems = newList
-                                                DataManager.saveMenus()
                                                 offsetY = 0f
+                                                // 위로 자동 스크롤
+                                                coroutineScope.launch { listState.scrollBy(-100f) }
                                             }
                                         }
                                     )
@@ -482,8 +507,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     newList[index] = newList[index - 1]
                                     newList[index - 1] = temp
                                     menuList = newList.toList()
-                                    DataManager.menuItems = newList
-                                    DataManager.saveMenus()
+                                    coroutineScope.launch { listState.scrollBy(-100f) }
                                 }
                             }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.KeyboardArrowUp, "위로")
@@ -495,8 +519,7 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     newList[index] = newList[index + 1]
                                     newList[index + 1] = temp
                                     menuList = newList.toList()
-                                    DataManager.menuItems = newList
-                                    DataManager.saveMenus()
+                                    coroutineScope.launch { listState.scrollBy(100f) }
                                 }
                             }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.KeyboardArrowDown, "아래로")
@@ -515,20 +538,17 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                                     val newList = menuList.toMutableList()
                                     newList[index].price = newPrice
                                     menuList = newList.toList()
-                                    DataManager.menuItems = newList
-                                    DataManager.saveMenus()
                                 }
                             },
                             modifier = Modifier.width(140.dp),
-                            singleLine = true
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                         )
                         
                         IconButton(onClick = {
                             val newList = menuList.toMutableList()
                             newList.removeAt(index)
                             menuList = newList.toList()
-                            DataManager.menuItems = newList
-                            DataManager.saveMenus()
                         }) {
                             Icon(Icons.Default.Delete, "삭제", tint = Color.Red)
                         }
@@ -553,7 +573,8 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                 onValueChange = { newMenuPrice = it },
                 label = { Text("가격") },
                 modifier = Modifier.weight(1f),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
@@ -562,11 +583,11 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                     val newList = menuList.toMutableList()
                     newList.add(MenuItem(newMenuName, price))
                     menuList = newList.toList()
-                    DataManager.menuItems = newList
-                    DataManager.saveMenus()
                     
                     newMenuName = ""
                     newMenuPrice = ""
+                    // 메뉴 추가 시 맨 아래로 자동 스크롤
+                    coroutineScope.launch { listState.scrollToItem(menuList.size - 1) }
                 }
             }, modifier = Modifier.height(55.dp)) {
                 Icon(Icons.Default.Add, "추가")
@@ -594,25 +615,32 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
         Text("비밀번호 변경", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(48.dp))
         
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        // 3. Edit 박스가 눌려서 텍스트가 안 보이는 현상 해결 (weight 활용)
+        Row(
+            verticalAlignment = Alignment.CenterVertically, 
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(0.8f) // 중앙에 여유 있게 배치
+        ) {
             
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(modifier = Modifier.weight(1f).padding(end = 32.dp)) {
                 OutlinedTextField(
                     value = currentPassword,
                     onValueChange = { currentPassword = it },
                     label = { Text("현재 비밀번호") },
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = newPassword,
                     onValueChange = { newPassword = it },
                     label = { Text("새 비밀번호") },
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             }
-            
-            Spacer(modifier = Modifier.width(32.dp))
             
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Button(
