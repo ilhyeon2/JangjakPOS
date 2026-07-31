@@ -82,7 +82,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(currentTime, style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.width(16.dp))
-                // 가로/세로 상관없이 우측 상단 톱니바퀴로 관리자 페이지 진입
                 IconButton(onClick = { navController.navigate("admin_login") }) {
                     Icon(Icons.Default.Settings, contentDescription = "관리자 페이지", modifier = Modifier.size(28.dp))
                 }
@@ -90,14 +89,14 @@ fun MainScreen(navController: androidx.navigation.NavController) {
         }
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 기기 방향에 따라 열 개수 자동 조절 (가로: 4열, 세로: 2열)
         val columnsCount = if (isLandscape) 4 else 2
         
         LazyVerticalGrid(
             columns = GridCells.Fixed(columnsCount),
             modifier = Modifier.weight(1f)
         ) {
-            items(7) { index ->
+            // DataManager의 테이블 사이즈(8개)만큼 자동으로 아이템 생성
+            items(DataManager.tables.size) { index ->
                 val dummy = updateTrigger
                 val table = DataManager.tables[index]
                 val totalAmount = table.orders.sumOf { it.menuItem.price * it.quantity }
@@ -159,7 +158,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     }
 
     if (isLandscape) {
-        // 가로 모드: 좌우 분할
         Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
@@ -188,7 +186,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
         }
     } else {
-        // 세로 모드: 상하 분할
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             Card(
@@ -220,7 +217,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     }
 }
 
-// 공통 메뉴 버튼 컴포넌트
 @Composable
 fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
@@ -266,7 +262,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
         Spacer(modifier = Modifier.height(16.dp))
         
         if (isLandscape) {
-            // 가로 모드: 3분할 
             val leftItems = table.orders.take(6)
             val centerItems = table.orders.drop(6).take(6)
             val rightItems = table.orders.drop(12) 
@@ -287,7 +282,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                 }
             }
         } else {
-            // 세로 모드: 1열 리스트 및 하단 고정 버튼
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(table.orders) { order ->
                     CheckoutItemRow(order, numFormat)
@@ -407,7 +401,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 공통 헤더
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "메인으로 돌아가기")
@@ -429,7 +422,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(16.dp))
         
         if (isLandscape) {
-            // 가로 모드: 좌우 분할
             Row(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
                     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -448,7 +440,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 }
             }
         } else {
-            // 세로 모드: 상하 분할
             Row(modifier = Modifier.fillMaxWidth()) {
                 AdminSalesCard("월별 누적 매출", monthlyTotal, numFormat, modifier = Modifier.weight(1f).padding(end = 4.dp))
                 AdminSalesCard("일별 누적 매출", dailyTotal, numFormat, modifier = Modifier.weight(1f).padding(start = 4.dp))
@@ -654,7 +645,6 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
         
         Divider(modifier = Modifier.padding(vertical = 8.dp))
         
-        // 반응형 입력 폼 (가로면 한 줄, 세로면 두 줄)
         if (isLandscape) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(value = newMenuName, onValueChange = { newMenuName = it }, label = { Text("메뉴명") }, modifier = Modifier.weight(1f), singleLine = true)
@@ -718,7 +708,6 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
         Spacer(modifier = Modifier.height(48.dp))
         
         if (isLandscape) {
-            // 가로 모드: 좌우 배치
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth(0.9f)) {
                 Column(modifier = Modifier.weight(1f).padding(end = 32.dp)) {
                     OutlinedTextField(value = currentPassword, onValueChange = { currentPassword = it }, label = { Text("현재 비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
@@ -736,7 +725,6 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
                 }
             }
         } else {
-            // 세로 모드: 상하 스택
             Column(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(value = currentPassword, onValueChange = { currentPassword = it }, label = { Text("현재 비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Spacer(modifier = Modifier.height(16.dp))
