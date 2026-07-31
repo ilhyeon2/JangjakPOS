@@ -1,5 +1,6 @@
 package com.example.jangjakpos.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -308,6 +310,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyReceipts = DataManager.receipts.filter { it.date.startsWith(selectedDayStr) }
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }.sumOf { it.totalAmount }
+    
+    // Toast 메시지를 위한 Context
+    val context = LocalContext.current
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
@@ -344,7 +349,11 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
             Spacer(modifier = Modifier.width(16.dp))
             
             Box {
-                IconButton(onClick = { expandedMenu = true }) {
+                IconButton(onClick = { 
+                    expandedMenu = true
+                    // 디버깅을 위한 Toast 메시지 출력
+                    Toast.makeText(context, "브랜치: ilhyeon2-patch-0731", Toast.LENGTH_SHORT).show()
+                }) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(32.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
@@ -585,10 +594,8 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
         Text("비밀번호 변경", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(48.dp))
         
-        // 텍스트 박스와 버튼을 가로로 배치 (Row 활용)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             
-            // 왼쪽: 비밀번호 입력 박스 2개
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 OutlinedTextField(
                     value = currentPassword,
@@ -605,9 +612,8 @@ fun PasswordSettingsScreen(navController: androidx.navigation.NavController) {
                 )
             }
             
-            Spacer(modifier = Modifier.width(32.dp)) // 간격 조정
+            Spacer(modifier = Modifier.width(32.dp))
             
-            // 오른쪽: 확인, 취소 버튼 2개
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Button(
                     onClick = {
