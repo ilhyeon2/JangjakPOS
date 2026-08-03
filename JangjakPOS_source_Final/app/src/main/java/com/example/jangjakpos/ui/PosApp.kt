@@ -1,12 +1,14 @@
 package com.example.jangjakpos.ui
 
 import android.content.res.Configuration
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,14 +26,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.navigation.compose.*
@@ -181,11 +186,15 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                         }
                     }
                 }
-                Button(onClick = { showCheckout = true }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("정산") }
-                Button(onClick = { navController.popBackStack() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("뒤로 가기") }
+                Button(
+                    onClick = { showCheckout = true }, 
+                    modifier = Modifier.fillMaxWidth().height(60.dp)
+                ) { 
+                    Text("정산 보기", style = MaterialTheme.typography.titleLarge) 
+                }
             }
             
-            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 130.dp), modifier = Modifier.weight(2f)) {
+            LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(2f)) {
                 items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
             }
         }
@@ -209,44 +218,101 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 }
             }
             
-            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Button(onClick = { navController.popBackStack() }, modifier = Modifier.weight(1f).height(50.dp).padding(end = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("뒤로 가기") }
-                Button(onClick = { showCheckout = true }, modifier = Modifier.weight(1f).height(50.dp).padding(start = 4.dp)) { Text("정산") }
+            Button(
+                onClick = { showCheckout = true }, 
+                modifier = Modifier.fillMaxWidth().height(60.dp).padding(bottom = 8.dp)
+            ) { 
+                Text("정산 보기", style = MaterialTheme.typography.titleLarge) 
             }
             
-            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 100.dp), modifier = Modifier.weight(1.5f)) {
+            LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1.8f)) {
                 items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
             }
         }
     }
 }
 
+// --------------------------------------------------------------------------------
+// [수정된 메뉴 버튼] 주문 추가 / 취소 시 Toast 메시지 알림 추가
+// --------------------------------------------------------------------------------
 @Composable
 fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
-    Card(modifier = Modifier.padding(4.dp)) {
-        Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(menu.name, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-            Text("${menu.price}원", style = MaterialTheme.typography.bodySmall)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = {
+    var isPressed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = tween(durationMillis = 100),
+        label = "pressAnimation"
+    )
+
+    Card(
+        modifier = Modifier
+            .padding(6.dp)
+            .fillMaxWidth()
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                    },
+                    onTap = {
+                        // 메뉴 터치 -> 수량 +1
+                        val existing = table.orders.find { it.menuItem.name == menu.name }
+                        if (existing != null) {
+                            existing.quantity++
+                        } else {
+                            table.orders.add(OrderItem(menu, 1))
+                        }
+                        DataManager.saveTables()
+                        Toast.makeText(context, "${menu.name} 추가됨", Toast.LENGTH_SHORT).show()
+                        onUpdate()
+                    }
+                )
+            },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(), 
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = menu.name, 
+                fontSize = 19.sp, 
+                fontWeight = FontWeight.Bold, 
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${menu.price}원", 
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.DarkGray
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            
+            // 수량 차감(-) 버튼
+            Button(
+                onClick = {
                     val existing = table.orders.find { it.menuItem.name == menu.name }
                     if (existing != null && existing.quantity > 0) {
                         existing.quantity--
-                        if(existing.quantity == 0) table.orders.remove(existing)
+                        if (existing.quantity == 0) table.orders.remove(existing)
+                        DataManager.saveTables()
+                        Toast.makeText(context, "${menu.name} 취소됨", Toast.LENGTH_SHORT).show()
+                        onUpdate()
+                    } else {
+                        Toast.makeText(context, "주문 내역이 없습니다.", Toast.LENGTH_SHORT).show()
                     }
-                    DataManager.saveTables()
-                    onUpdate()
-                }, modifier = Modifier.weight(1f).padding(end = 2.dp), contentPadding = PaddingValues(0.dp)) { Text("-") }
-                
-                Button(onClick = {
-                    val existing = table.orders.find { it.menuItem.name == menu.name }
-                    if (existing != null) existing.quantity++
-                    else table.orders.add(OrderItem(menu, 1))
-                    DataManager.saveTables()
-                    onUpdate()
-                }, modifier = Modifier.weight(1f).padding(start = 2.dp), contentPadding = PaddingValues(0.dp)) { Text("+") }
+                }, 
+                modifier = Modifier.fillMaxWidth(0.6f).height(36.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) { 
+                Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold) 
             }
         }
     }
@@ -374,7 +440,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     var expandedMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    // 데이터 백업 내보내기 런처
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         uri?.let {
             val success = DataManager.exportBackup(context, it)
@@ -383,7 +448,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
         }
     }
 
-    // 데이터 복원 가져오기 런처
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
             val success = DataManager.importBackup(context, it)
