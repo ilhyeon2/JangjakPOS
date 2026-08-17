@@ -1,9 +1,9 @@
 package com.example.jangjakpos
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +25,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+// ==========================================
+// 앱의 시작점: MainActivity
+// ==========================================
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    PosMainScreen()
+                }
+            }
+        }
+    }
+}
 
 // ==========================================
 // 1. 데이터 모델 정의
@@ -80,7 +98,6 @@ fun PosMainScreen() {
                     modifier = Modifier.padding(16.dp)
                 )
                 
-                // 최신 버전에 맞게 HorizontalDivider 로 변경
                 HorizontalDivider()
 
                 // 주문 리스트 (스크롤 가능)
@@ -94,13 +111,13 @@ fun PosMainScreen() {
                             order = order,
                             onIncrease = {
                                 val index = orderList.indexOf(order)
-                                if (index != -1) { // 안전 장치 추가
+                                if (index != -1) { 
                                     orderList[index] = order.copy(quantity = order.quantity + 1)
                                 }
                             },
                             onDecrease = {
                                 val index = orderList.indexOf(order)
-                                if (index != -1) { // 안전 장치 추가
+                                if (index != -1) { 
                                     if (order.quantity > 1) {
                                         orderList[index] = order.copy(quantity = order.quantity - 1)
                                     } else {
@@ -202,8 +219,9 @@ fun OrderItemRow(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Remove 아이콘 대신 텍스트(-)를 사용하여 에러 방지
             IconButton(onClick = onDecrease, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Remove, contentDescription = "감소")
+                Text(text = "−", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
             
             Text(
@@ -243,7 +261,7 @@ fun MenuGridItem(menu: MenuItem, onClick: (MenuItem) -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
-    // 클릭 시 살짝 작아지는 애니메이션 효과 (에러 방지용 label 추가)
+    // 클릭 시 살짝 작아지는 애니메이션 효과
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         label = "ButtonScaleAnimation"
