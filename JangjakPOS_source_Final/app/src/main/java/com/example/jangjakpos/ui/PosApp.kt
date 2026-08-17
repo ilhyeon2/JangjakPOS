@@ -230,27 +230,31 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     }
 }
 
-// 겹침 방지를 위해 분리 및 개선된 주문 리스트 아이템 컴포저블
+// 수량을 정중앙에 위치하도록 개선된 주문 리스트 아이템 컴포저블
 @Composable
 fun OrderListItem(order: OrderItem, table: Table, context: android.content.Context, onUpdate: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 1. 메뉴명 (가장 넓은 공간 차지 및 왼쪽 정렬)
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1.5f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        
+        // 2. 수량 (메뉴명과 삭제 버튼 사이의 정중앙에 위치)
         Text(
             text = "${order.quantity}개", 
             style = MaterialTheme.typography.bodyLarge, 
-            modifier = Modifier.padding(horizontal = 8.dp)
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center
         )
         
+        // 3. 삭제 버튼 (오른쪽 끝에 고정)
         Button(
             onClick = {
                 if (order.quantity > 0) {
@@ -317,10 +321,10 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
         ) {
             Text(
                 text = menu.name, 
-                fontSize = 18.sp, // 화면이 좁을 때를 대비해 크기 살짝 조정
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold, 
                 textAlign = TextAlign.Center,
-                maxLines = 2, // 메뉴 이름이 길면 두 줄까지 허용
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(6.dp))
