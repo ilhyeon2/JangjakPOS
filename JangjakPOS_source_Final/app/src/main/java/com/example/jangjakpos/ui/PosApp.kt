@@ -1,10 +1,10 @@
 package com.example.jangjakpos.ui
 
 import android.content.res.Configuration
-import android.view.Gravity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
@@ -164,11 +164,24 @@ fun MainScreen(navController: androidx.navigation.NavController) {
 fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val context = LocalContext.current
     
     var showCheckout by remember { mutableStateOf(false) }
     val table = DataManager.tables.find { it.id == tableId } ?: return
     var updateTrigger by remember { mutableStateOf(0) }
+
+    // 상단 알림 메시지 상태 관리
+    var topMessage by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    fun showTopMessage(msg: String) {
+        topMessage = msg
+        coroutineScope.launch {
+            delay(1500L) // 1.5초 동안 표시
+            if (topMessage == msg) {
+                topMessage = null
+            }
+        }
+    }
 
     if (showCheckout) {
         CheckoutScreen(tableId, navController) { showCheckout = false }
@@ -179,6 +192,29 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
         Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+                
+                // 상단 알림 메시지 배너
+                AnimatedVisibility(
+                    visible = topMessage != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = topMessage ?: "",
+                            modifier = Modifier.padding(8.dp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
                 Card(
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -186,7 +222,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                     LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val dummy = updateTrigger
                         items(table.orders.toList()) { order ->
-                            OrderListItem(order, table, context) { updateTrigger++ }
+                            OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
                         }
                     }
                 }
@@ -199,12 +235,35 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(2f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> MenuButton(index, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ } }
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+            
+            // 상단 알림 메시지 배너
+            AnimatedVisibility(
+                visible = topMessage != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = topMessage ?: "",
+                        modifier = Modifier.padding(8.dp),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
             Card(
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -212,7 +271,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                     val dummy = updateTrigger
                     items(table.orders.toList()) { order ->
-                        OrderListItem(order, table, context) { updateTrigger++ }
+                        OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
                     }
                 }
             }
@@ -225,15 +284,14 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1.8f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> MenuButton(index, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ } }
             }
         }
     }
 }
 
-// 상단에 메시지가 뜨도록 Toast 위치를 조정함
 @Composable
-fun OrderListItem(order: OrderItem, table: Table, context: android.content.Context, onUpdate: () -> Unit) {
+fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, onUpdate: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -259,11 +317,7 @@ fun OrderListItem(order: OrderItem, table: Table, context: android.content.Conte
                     order.quantity--
                     if (order.quantity == 0) table.orders.remove(order)
                     DataManager.saveTables()
-                    
-                    val toast = Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT)
-                    toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, 150)
-                    toast.show()
-                    
+                    onMessage("${order.menuItem.name} 1개 취소됨")
                     onUpdate()
                 }
             },
@@ -277,10 +331,9 @@ fun OrderListItem(order: OrderItem, table: Table, context: android.content.Conte
 }
 
 @Composable
-fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
+fun MenuButton(index: Int, table: Table, onMessage: (String) -> Unit, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
@@ -308,11 +361,7 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                             table.orders.add(OrderItem(menu, 1))
                         }
                         DataManager.saveTables()
-                        
-                        val toast = Toast.makeText(context, "${menu.name} 추가됨", Toast.LENGTH_SHORT)
-                        toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, 150)
-                        toast.show()
-                        
+                        onMessage("${menu.name} 추가됨")
                         onUpdate()
                     }
                 )
