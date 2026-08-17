@@ -1,4 +1,16 @@
-steps:
+name: Android Build
+
+on:
+  push:
+    branches: [ "main", "master", "ilhyeon2-A17" ]
+  pull_request:
+    branches: [ "main", "master", "ilhyeon2-A17" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
     - name: 저장소 코드 불러오기 (Checkout)
       uses: actions/checkout@v4
 
@@ -11,11 +23,9 @@ steps:
     - name: Gradle 환경 설정 및 캐시 (최신 버전 적용)
       uses: gradle/actions/setup-gradle@v4
 
-    # ========== [추가된 부분] ==========
     - name: 누락된 Gradle Wrapper 강제 생성
       working-directory: ./JangjakPOS_source_Final
       run: gradle wrapper
-    # ==================================
 
     - name: gradlew 실행 권한 부여
       working-directory: ./JangjakPOS_source_Final
