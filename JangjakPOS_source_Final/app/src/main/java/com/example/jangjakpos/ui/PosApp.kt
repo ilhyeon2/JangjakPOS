@@ -169,7 +169,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     val table = DataManager.tables.find { it.id == tableId } ?: return
     var updateTrigger by remember { mutableStateOf(0) }
 
-    // 상단 알림 메시지 상태 관리
+    // 상단 삭제 알림 메시지 상태 관리
     var topMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -193,7 +193,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
                 
-                // 상단 알림 메시지 배너
+                // 상단 삭제 알림 배너 (빨간색 폰트)
                 AnimatedVisibility(
                     visible = topMessage != null,
                     enter = fadeIn() + expandVertically(),
@@ -201,13 +201,13 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 ) {
                     Surface(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = MaterialTheme.colorScheme.errorContainer,
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             text = topMessage ?: "",
                             modifier = Modifier.padding(8.dp),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = Color.Red,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -235,14 +235,14 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(2f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             
-            // 상단 알림 메시지 배너
+            // 상단 삭제 알림 배너 (빨간색 폰트)
             AnimatedVisibility(
                 visible = topMessage != null,
                 enter = fadeIn() + expandVertically(),
@@ -250,13 +250,13 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = topMessage ?: "",
                         modifier = Modifier.padding(8.dp),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = Color.Red,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
@@ -284,7 +284,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1.8f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
             }
         }
     }
@@ -331,7 +331,7 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
 }
 
 @Composable
-fun MenuButton(index: Int, table: Table, onMessage: (String) -> Unit, onUpdate: () -> Unit) {
+fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
 
@@ -361,7 +361,7 @@ fun MenuButton(index: Int, table: Table, onMessage: (String) -> Unit, onUpdate: 
                             table.orders.add(OrderItem(menu, 1))
                         }
                         DataManager.saveTables()
-                        onMessage("${menu.name} 추가됨")
+                        // 추가 시에는 메시지를 호출하지 않음
                         onUpdate()
                     }
                 )
