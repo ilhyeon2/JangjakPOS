@@ -1,6 +1,7 @@
 package com.example.jangjakpos.ui
 
 import android.content.res.Configuration
+import android.view.Gravity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -230,14 +231,13 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     }
 }
 
-// 수량을 정중앙에 위치하도록 개선된 주문 리스트 아이템 컴포저블
+// 상단에 메시지가 뜨도록 Toast 위치를 조정함
 @Composable
 fun OrderListItem(order: OrderItem, table: Table, context: android.content.Context, onUpdate: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. 메뉴명 (가장 넓은 공간 차지 및 왼쪽 정렬)
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
@@ -246,7 +246,6 @@ fun OrderListItem(order: OrderItem, table: Table, context: android.content.Conte
             overflow = TextOverflow.Ellipsis
         )
         
-        // 2. 수량 (메뉴명과 삭제 버튼 사이의 정중앙에 위치)
         Text(
             text = "${order.quantity}개", 
             style = MaterialTheme.typography.bodyLarge, 
@@ -254,14 +253,17 @@ fun OrderListItem(order: OrderItem, table: Table, context: android.content.Conte
             textAlign = TextAlign.Center
         )
         
-        // 3. 삭제 버튼 (오른쪽 끝에 고정)
         Button(
             onClick = {
                 if (order.quantity > 0) {
                     order.quantity--
                     if (order.quantity == 0) table.orders.remove(order)
                     DataManager.saveTables()
-                    Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT).show()
+                    
+                    val toast = Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT)
+                    toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, 150)
+                    toast.show()
+                    
                     onUpdate()
                 }
             },
@@ -306,7 +308,11 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                             table.orders.add(OrderItem(menu, 1))
                         }
                         DataManager.saveTables()
-                        Toast.makeText(context, "${menu.name} 추가됨", Toast.LENGTH_SHORT).show()
+                        
+                        val toast = Toast.makeText(context, "${menu.name} 추가됨", Toast.LENGTH_SHORT)
+                        toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, 150)
+                        toast.show()
+                        
                         onUpdate()
                     }
                 )
