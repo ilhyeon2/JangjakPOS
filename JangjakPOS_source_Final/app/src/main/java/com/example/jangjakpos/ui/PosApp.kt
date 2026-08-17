@@ -174,26 +174,38 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     val table = DataManager.tables.find { it.id == tableId } ?: return
     var updateTrigger by remember { mutableStateOf(0) }
 
-    // 스크롤 상태와 코루틴 스코프 추가 (자동 스크롤용)
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
     var topMessage by remember { mutableStateOf<String?>(null) }
+    // 💡 변경된 메뉴의 이름을 저장하여 하이라이트 애니메이션을 발동시키는 상태 변수
+    var highlightedItemName by remember { mutableStateOf<String?>(null) }
 
     fun showTopMessage(msg: String) {
         topMessage = msg
         coroutineScope.launch {
-            delay(1500L) // 1.5초 동안 표시
+            delay(1500L)
             if (topMessage == msg) {
                 topMessage = null
             }
         }
     }
 
-    // 아이템 수정 시 해당 위치로 부드럽게 스크롤하는 콜백 함수
-    val scrollToItem: (Int) -> Unit = { index ->
+    // 💡 아이템 색상을 빨간색으로 변경하고 1초 뒤 원래 상태로 되돌리는 함수
+    val highlightItem: (String) -> Unit = { name ->
+        highlightedItemName = name
         coroutineScope.launch {
-            // UI가 갱신(Recomposition)될 수 있도록 아주 짧은 딜레이 부여
+            delay(1000L) // 1초 동안 빨간색 유지
+            if (highlightedItemName == name) {
+                highlightedItemName = null // 원래 색으로 자연스럽게 돌아감
+            }
+        }
+    }
+
+    // 스크롤 및 하이라이트 동시 처리 콜백
+    val onItemModified: (Int, String) -> Unit = { index, name ->
+        highlightItem(name)
+        coroutineScope.launch {
             delay(50) 
             if (index in 0 until table.orders.size) {
                 listState.animateScrollToItem(index)
@@ -211,7 +223,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
                 
-                // 상단 삭제 알림 배너
                 AnimatedVisibility(
                     visible = topMessage != null,
                     enter = fadeIn() + expandVertically(),
@@ -237,11 +248,16 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    // LazyColumn에 스크롤 상태(listState) 연결
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val dummy = updateTrigger
                         items(table.orders.toList()) { order ->
-                            OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
+                            OrderListItem(
+                                order = order, 
+                                table = table, 
+                                isHighlighted = (order.menuItem.name == highlightedItemName),
+                                onMessage = { msg -> showTopMessage(msg) },
+                                onHighlight = { highlightItem(order.menuItem.name) }
+                            ) { updateTrigger++ }
                         }
                     }
                 }
@@ -255,7 +271,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(2f)) {
                 items(DataManager.menuItems.size) { index -> 
-                    MenuButton(index, table, onItemModified = scrollToItem) { updateTrigger++ } 
+                    MenuButton(index, table, onItemModified = onItemModified) { updateTrigger++ } 
                 }
             }
         }
@@ -263,7 +279,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             
-            // 상단 삭제 알림 배너
             AnimatedVisibility(
                 visible = topMessage != null,
                 enter = fadeIn() + expandVertically(),
@@ -289,11 +304,16 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                // LazyColumn에 스크롤 상태(listState) 연결
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp)) {
                     val dummy = updateTrigger
                     items(table.orders.toList()) { order ->
-                        OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
+                        OrderListItem(
+                            order = order, 
+                            table = table, 
+                            isHighlighted = (order.menuItem.name == highlightedItemName),
+                            onMessage = { msg -> showTopMessage(msg) },
+                            onHighlight = { highlightItem(order.menuItem.name) }
+                        ) { updateTrigger++ }
                     }
                 }
             }
@@ -307,15 +327,30 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1.8f)) {
                 items(DataManager.menuItems.size) { index -> 
-                    MenuButton(index, table, onItemModified = scrollToItem) { updateTrigger++ } 
+                    MenuButton(index, table, onItemModified = onItemModified) { updateTrigger++ } 
                 }
             }
         }
     }
 }
 
+// 💡 애니메이션 색상 처리를 반영한 주문 리스트 아이템
 @Composable
-fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, onUpdate: () -> Unit) {
+fun OrderListItem(
+    order: OrderItem, 
+    table: Table, 
+    isHighlighted: Boolean,
+    onMessage: (String) -> Unit, 
+    onHighlight: () -> Unit,
+    onUpdate: () -> Unit
+) {
+    // 하이라이트 여부에 따라 부드럽게 색상이 변환되는 애니메이션 상태
+    val textColor by animateColorAsState(
+        targetValue = if (isHighlighted) Color.Red else MaterialTheme.colorScheme.onSurface,
+        animationSpec = tween(durationMillis = 500), // 자연스러운 색상 전환(페이드) 효과
+        label = "textColorAnimation"
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -323,6 +358,7 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
+            color = textColor, // 애니메이션이 적용된 색상 변수 사용
             modifier = Modifier.weight(1.5f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -331,6 +367,7 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
         Text(
             text = "${order.quantity}개", 
             style = MaterialTheme.typography.bodyLarge, 
+            color = textColor, // 애니메이션이 적용된 색상 변수 사용
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center
         )
@@ -339,7 +376,11 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
             onClick = {
                 if (order.quantity > 0) {
                     order.quantity--
-                    if (order.quantity == 0) table.orders.remove(order)
+                    if (order.quantity == 0) {
+                        table.orders.remove(order)
+                    } else {
+                        onHighlight() // 수량 감소 시에도 변경 여부를 시각적으로 하이라이트
+                    }
                     DataManager.saveTables()
                     onMessage("${order.menuItem.name} 1개 취소됨")
                     onUpdate()
@@ -354,9 +395,8 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
     }
 }
 
-// 💡 메뉴 버튼 터치 시 진동 + 자동 스크롤 연동
 @Composable
-fun MenuButton(index: Int, table: Table, onItemModified: (Int) -> Unit, onUpdate: () -> Unit) {
+fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -380,18 +420,16 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int) -> Unit, onUpdate
                         isPressed = false
                     },
                     onTap = {
-                        // 1. 메뉴 추가 및 해당 아이템의 리스트 인덱스 확인
                         val existingIndex = table.orders.indexOfFirst { it.menuItem.name == menu.name }
                         val targetIndex = if (existingIndex != -1) {
                             table.orders[existingIndex].quantity++
-                            existingIndex // 기존 메뉴 인덱스
+                            existingIndex
                         } else {
                             table.orders.add(OrderItem(menu, 1))
-                            table.orders.size - 1 // 새 메뉴가 추가된 마지막 인덱스
+                            table.orders.size - 1
                         }
                         DataManager.saveTables()
 
-                        // 2. 짧은 진동(Haptic Feedback) 발생시키기
                         try {
                             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                 val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -411,9 +449,8 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int) -> Unit, onUpdate
                             // 무시
                         }
 
-                        // UI 업데이트 트리거 후 스크롤 호출
                         onUpdate()
-                        onItemModified(targetIndex)
+                        onItemModified(targetIndex, menu.name) // 💡 인덱스와 함께 메뉴명도 전달
                     }
                 )
             },
