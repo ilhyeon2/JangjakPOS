@@ -1,6 +1,11 @@
 package com.example.jangjakpos.ui
 
+import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -193,7 +198,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
                 
-                // 상단 삭제 알림 배너 (빨간색 폰트)
+                // 상단 삭제 알림 배너 (빨간색 폰트 적용)
                 AnimatedVisibility(
                     visible = topMessage != null,
                     enter = fadeIn() + expandVertically(),
@@ -207,7 +212,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                         Text(
                             text = topMessage ?: "",
                             modifier = Modifier.padding(8.dp),
-                            color = Color.Red,
+                            color = Color.Red, // 빨간색 폰트
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -242,7 +247,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             
-            // 상단 삭제 알림 배너 (빨간색 폰트)
+            // 상단 삭제 알림 배너 (빨간색 폰트 적용)
             AnimatedVisibility(
                 visible = topMessage != null,
                 enter = fadeIn() + expandVertically(),
@@ -256,7 +261,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                     Text(
                         text = topMessage ?: "",
                         modifier = Modifier.padding(8.dp),
-                        color = Color.Red,
+                        color = Color.Red, // 빨간색 폰트
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
@@ -296,6 +301,7 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 1. 메뉴명
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
@@ -304,6 +310,7 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
             overflow = TextOverflow.Ellipsis
         )
         
+        // 2. 수량 (가운데 정렬)
         Text(
             text = "${order.quantity}개", 
             style = MaterialTheme.typography.bodyLarge, 
@@ -311,13 +318,14 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
             textAlign = TextAlign.Center
         )
         
+        // 3. 삭제 버튼
         Button(
             onClick = {
                 if (order.quantity > 0) {
                     order.quantity--
                     if (order.quantity == 0) table.orders.remove(order)
                     DataManager.saveTables()
-                    onMessage("${order.menuItem.name} 1개 취소됨")
+                    onMessage("${order.menuItem.name} 1개 취소됨") // 삭제 시 메시지 전달
                     onUpdate()
                 }
             },
@@ -330,10 +338,12 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
     }
 }
 
+// 💡 메뉴 버튼 터치 시 진동(Vibration) 추가 및 추가 메시지는 뜨지 않도록 수정 완료
 @Composable
 fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
@@ -354,6 +364,7 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                         isPressed = false
                     },
                     onTap = {
+                        // 1. 메뉴 추가 로직
                         val existing = table.orders.find { it.menuItem.name == menu.name }
                         if (existing != null) {
                             existing.quantity++
@@ -361,7 +372,28 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                             table.orders.add(OrderItem(menu, 1))
                         }
                         DataManager.saveTables()
-                        // 추가 시에는 메시지를 호출하지 않음
+
+                        // 2. 짧은 진동(Haptic Feedback) 발생시키기
+                        try {
+                            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                                vibratorManager.defaultVibrator
+                            } else {
+                                @Suppress("DEPRECATION")
+                                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                            }
+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+                            } else {
+                                @Suppress("DEPRECATION")
+                                vibrator.vibrate(40)
+                            }
+                        } catch (e: Exception) {
+                            // 권한 문제 등으로 진동을 지원하지 않는 기기 예외 처리 (무시)
+                        }
+
+                        // 추가 시에는 상단 메시지를 호출하지 않음
                         onUpdate()
                     }
                 )
