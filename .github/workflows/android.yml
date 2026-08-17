@@ -20,10 +20,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Gradle 환경 설정 및 캐시 (최신 버전 적용)
+    - name: Gradle 환경 설정 및 캐시 (버전 8.3 강제 지정)
       uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.3' # 충돌을 막기 위해 8.3 버전으로 고정하여 설치!
 
-    - name: 누락된 Gradle Wrapper 강제 생성
+    - name: 누락된 Gradle Wrapper 세트 전체 강제 생성
       working-directory: ./JangjakPOS_source_Final
       run: gradle wrapper
 
