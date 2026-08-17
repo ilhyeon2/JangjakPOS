@@ -1,3 +1,4 @@
+package com.example.jangjakpos
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -79,7 +80,8 @@ fun PosMainScreen() {
                     modifier = Modifier.padding(16.dp)
                 )
                 
-                Divider()
+                // 최신 버전에 맞게 HorizontalDivider 로 변경
+                HorizontalDivider()
 
                 // 주문 리스트 (스크롤 가능)
                 LazyColumn(
@@ -92,25 +94,29 @@ fun PosMainScreen() {
                             order = order,
                             onIncrease = {
                                 val index = orderList.indexOf(order)
-                                orderList[index] = order.copy(quantity = order.quantity + 1)
+                                if (index != -1) { // 안전 장치 추가
+                                    orderList[index] = order.copy(quantity = order.quantity + 1)
+                                }
                             },
                             onDecrease = {
-                                if (order.quantity > 1) {
-                                    val index = orderList.indexOf(order)
-                                    orderList[index] = order.copy(quantity = order.quantity - 1)
-                                } else {
-                                    orderList.remove(order)
+                                val index = orderList.indexOf(order)
+                                if (index != -1) { // 안전 장치 추가
+                                    if (order.quantity > 1) {
+                                        orderList[index] = order.copy(quantity = order.quantity - 1)
+                                    } else {
+                                        orderList.remove(order)
+                                    }
                                 }
                             },
                             onDelete = {
                                 orderList.remove(order)
                             }
                         )
-                        Divider(color = Color.LightGray, thickness = 0.5.dp)
+                        HorizontalDivider(color = Color.LightGray, thickness = 0.5.dp)
                     }
                 }
 
-                Divider(thickness = 2.dp)
+                HorizontalDivider(thickness = 2.dp)
 
                 // 총 결제 금액
                 Row(
@@ -146,7 +152,9 @@ fun PosMainScreen() {
                         val existingOrder = orderList.find { it.menu.id == selectedMenu.id }
                         if (existingOrder != null) {
                             val index = orderList.indexOf(existingOrder)
-                            orderList[index] = existingOrder.copy(quantity = existingOrder.quantity + 1)
+                            if (index != -1) {
+                                orderList[index] = existingOrder.copy(quantity = existingOrder.quantity + 1)
+                            }
                         } else {
                             orderList.add(OrderItem(selectedMenu, 1))
                         }
@@ -158,7 +166,7 @@ fun PosMainScreen() {
 }
 
 // ==========================================
-// 3. 주문 내역의 개별 아이템 행 (요청하신 레이아웃 적용)
+// 3. 주문 내역의 개별 아이템 행
 // ==========================================
 @Composable
 fun OrderItemRow(
@@ -235,8 +243,11 @@ fun MenuGridItem(menu: MenuItem, onClick: (MenuItem) -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
-    // 클릭 시 살짝 작아지는 애니메이션 효과
-    val scale by animateFloatAsState(targetValue = if (isPressed) 0.95f else 1f)
+    // 클릭 시 살짝 작아지는 애니메이션 효과 (에러 방지용 label 추가)
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        label = "ButtonScaleAnimation"
+    )
 
     Button(
         onClick = { onClick(menu) },
