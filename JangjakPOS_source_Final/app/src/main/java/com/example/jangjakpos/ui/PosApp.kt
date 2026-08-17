@@ -156,6 +156,7 @@ fun MainScreen(navController: androidx.navigation.NavController) {
 fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val context = LocalContext.current
     
     var showCheckout by remember { mutableStateOf(false) }
     val table = DataManager.tables.find { it.id == tableId } ?: return
@@ -176,12 +177,32 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 ) {
                     LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val dummy = updateTrigger
-                        items(table.orders.size) { index ->
-                            val order = table.orders[index]
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge)
-                                Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge)
-                                Text("${order.menuItem.price * order.quantity}원", style = MaterialTheme.typography.bodyLarge)
+                        // 리스트 항목이 삭제될 때의 튕김을 방지하기 위해 .toList()로 복사본을 순회합니다.
+                        items(table.orders.toList()) { order ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                                Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 8.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        if (order.quantity > 0) {
+                                            order.quantity--
+                                            if (order.quantity == 0) table.orders.remove(order)
+                                            DataManager.saveTables()
+                                            Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT).show()
+                                            updateTrigger++
+                                        }
+                                    },
+                                    modifier = Modifier.size(width = 44.dp, height = 36.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -207,12 +228,32 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                     val dummy = updateTrigger
-                    items(table.orders.size) { index ->
-                        val order = table.orders[index]
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    // 리스트 항목이 삭제될 때의 튕김을 방지하기 위해 .toList()로 복사본을 순회합니다.
+                    items(table.orders.toList()) { order ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
-                            Text("${order.menuItem.price * order.quantity}원", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+                            Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 8.dp))
+                            
+                            Button(
+                                onClick = {
+                                    if (order.quantity > 0) {
+                                        order.quantity--
+                                        if (order.quantity == 0) table.orders.remove(order)
+                                        DataManager.saveTables()
+                                        Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT).show()
+                                        updateTrigger++
+                                    }
+                                },
+                                modifier = Modifier.size(width = 44.dp, height = 36.dp),
+                                contentPadding = PaddingValues(0.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -232,9 +273,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     }
 }
 
-// --------------------------------------------------------------------------------
-// [수정된 메뉴 버튼] 주문 추가 / 취소 시 Toast 메시지 알림 추가
-// --------------------------------------------------------------------------------
 @Composable
 fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
@@ -260,7 +298,6 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                         isPressed = false
                     },
                     onTap = {
-                        // 메뉴 터치 -> 수량 +1
                         val existing = table.orders.find { it.menuItem.name == menu.name }
                         if (existing != null) {
                             existing.quantity++
@@ -277,43 +314,22 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(), 
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(16.dp).fillMaxWidth(), 
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = menu.name, 
-                fontSize = 19.sp, 
+                fontSize = 20.sp, 
                 fontWeight = FontWeight.Bold, 
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "${menu.price}원", 
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.DarkGray
             )
-            Spacer(modifier = Modifier.height(10.dp))
-            
-            // 수량 차감(-) 버튼
-            Button(
-                onClick = {
-                    val existing = table.orders.find { it.menuItem.name == menu.name }
-                    if (existing != null && existing.quantity > 0) {
-                        existing.quantity--
-                        if (existing.quantity == 0) table.orders.remove(existing)
-                        DataManager.saveTables()
-                        Toast.makeText(context, "${menu.name} 취소됨", Toast.LENGTH_SHORT).show()
-                        onUpdate()
-                    } else {
-                        Toast.makeText(context, "주문 내역이 없습니다.", Toast.LENGTH_SHORT).show()
-                    }
-                }, 
-                modifier = Modifier.fillMaxWidth(0.6f).height(36.dp),
-                contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) { 
-                Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold) 
-            }
         }
     }
 }
