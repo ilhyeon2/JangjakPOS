@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -88,7 +89,9 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             Text(
                 "장작떼기 POS", 
                 style = if (isLandscape) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(currentDate, style = MaterialTheme.typography.titleMedium)
@@ -126,7 +129,9 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                                 val firstOrder = table.orders[0]
                                 Text(
                                     text = "${firstOrder.menuItem.name} x ${firstOrder.quantity}",
-                                    style = MaterialTheme.typography.bodyMedium
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 if (table.orders.size > 1) {
                                     Text(
@@ -143,7 +148,9 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                         Text(
                             text = if (totalAmount > 0) "${numFormat.format(totalAmount)}원" else "",
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.align(Alignment.End)
+                            modifier = Modifier.align(Alignment.End),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -177,33 +184,8 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 ) {
                     LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val dummy = updateTrigger
-                        // 리스트 항목이 삭제될 때의 튕김을 방지하기 위해 .toList()로 복사본을 순회합니다.
                         items(table.orders.toList()) { order ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                                Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 8.dp))
-                                
-                                Button(
-                                    onClick = {
-                                        if (order.quantity > 0) {
-                                            order.quantity--
-                                            if (order.quantity == 0) table.orders.remove(order)
-                                            DataManager.saveTables()
-                                            Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT).show()
-                                            updateTrigger++
-                                        }
-                                    },
-                                    modifier = Modifier.size(width = 44.dp, height = 36.dp),
-                                    contentPadding = PaddingValues(0.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                ) {
-                                    Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
+                            OrderListItem(order, table, context) { updateTrigger++ }
                         }
                     }
                 }
@@ -228,33 +210,8 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                     val dummy = updateTrigger
-                    // 리스트 항목이 삭제될 때의 튕김을 방지하기 위해 .toList()로 복사본을 순회합니다.
                     items(table.orders.toList()) { order ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            Text("${order.quantity}개", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 8.dp))
-                            
-                            Button(
-                                onClick = {
-                                    if (order.quantity > 0) {
-                                        order.quantity--
-                                        if (order.quantity == 0) table.orders.remove(order)
-                                        DataManager.saveTables()
-                                        Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT).show()
-                                        updateTrigger++
-                                    }
-                                },
-                                modifier = Modifier.size(width = 44.dp, height = 36.dp),
-                                contentPadding = PaddingValues(0.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) {
-                                Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        OrderListItem(order, table, context) { updateTrigger++ }
                     }
                 }
             }
@@ -269,6 +226,46 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1.8f)) {
                 items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
             }
+        }
+    }
+}
+
+// 겹침 방지를 위해 분리 및 개선된 주문 리스트 아이템 컴포저블
+@Composable
+fun OrderListItem(order: OrderItem, table: Table, context: android.content.Context, onUpdate: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = order.menuItem.name, 
+            style = MaterialTheme.typography.bodyLarge, 
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = "${order.quantity}개", 
+            style = MaterialTheme.typography.bodyLarge, 
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        
+        Button(
+            onClick = {
+                if (order.quantity > 0) {
+                    order.quantity--
+                    if (order.quantity == 0) table.orders.remove(order)
+                    DataManager.saveTables()
+                    Toast.makeText(context, "${order.menuItem.name} 1개 취소됨", Toast.LENGTH_SHORT).show()
+                    onUpdate()
+                }
+            },
+            modifier = Modifier.size(width = 44.dp, height = 36.dp),
+            contentPadding = PaddingValues(0.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        ) {
+            Text("−", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -320,9 +317,11 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
         ) {
             Text(
                 text = menu.name, 
-                fontSize = 20.sp, 
+                fontSize = 18.sp, // 화면이 좁을 때를 대비해 크기 살짝 조정
                 fontWeight = FontWeight.Bold, 
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 2, // 메뉴 이름이 길면 두 줄까지 허용
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
@@ -387,7 +386,13 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
 @Composable
 fun CheckoutItemRow(order: OrderItem, numFormat: NumberFormat) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(order.menuItem.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(
+            text = order.menuItem.name, 
+            style = MaterialTheme.typography.bodyLarge, 
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
         Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
         Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
     }
@@ -732,7 +737,13 @@ fun MenuSettingsScreen(navController: androidx.navigation.NavController) {
                         }
                         
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(menu.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            menu.name, 
+                            modifier = Modifier.weight(1f), 
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         
                         OutlinedTextField(
                             value = priceText,
