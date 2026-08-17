@@ -2,9 +2,10 @@ name: Android Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    # 현재 작업 중인 브랜치 추가
+    branches: [ "main", "master", "ilhyeon2-A17" ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "ilhyeon2-A17" ]
 
 jobs:
   build:
@@ -22,19 +23,21 @@ jobs:
 
     - name: Gradle 환경 설정 및 캐시 (최신 버전 적용)
       uses: gradle/actions/setup-gradle@v4
-      with:
-        # 캐시 400 에러를 방지하고 속도를 높이기 위한 설정
-        cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
     - name: gradlew 실행 권한 부여
+      # 프로젝트 최상위 경로 지정
+      working-directory: ./JangjakPOS_source_Final
       run: chmod +x gradlew
 
     - name: 안드로이드 디버그 APK 빌드
+      # 프로젝트 최상위 경로 지정
+      working-directory: ./JangjakPOS_source_Final
       run: ./gradlew assembleDebug
 
     - name: 빌드 결과물(APK) 업로드 (upload-artifact v4)
       uses: actions/upload-artifact@v4
       with:
         name: app-debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        # 결과물이 생성되는 정확한 하위 경로 지정
+        path: JangjakPOS_source_Final/app/build/outputs/apk/debug/app-debug.apk
         retention-days: 7
