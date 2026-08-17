@@ -174,9 +174,11 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     val table = DataManager.tables.find { it.id == tableId } ?: return
     var updateTrigger by remember { mutableStateOf(0) }
 
-    // 상단 삭제 알림 메시지 상태 관리
-    var topMessage by remember { mutableStateOf<String?>(null) }
+    // 스크롤 상태와 코루틴 스코프 추가 (자동 스크롤용)
+    val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    var topMessage by remember { mutableStateOf<String?>(null) }
 
     fun showTopMessage(msg: String) {
         topMessage = msg
@@ -184,6 +186,17 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             delay(1500L) // 1.5초 동안 표시
             if (topMessage == msg) {
                 topMessage = null
+            }
+        }
+    }
+
+    // 아이템 수정 시 해당 위치로 부드럽게 스크롤하는 콜백 함수
+    val scrollToItem: (Int) -> Unit = { index ->
+        coroutineScope.launch {
+            // UI가 갱신(Recomposition)될 수 있도록 아주 짧은 딜레이 부여
+            delay(50) 
+            if (index in 0 until table.orders.size) {
+                listState.animateScrollToItem(index)
             }
         }
     }
@@ -198,7 +211,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
                 
-                // 상단 삭제 알림 배너 (빨간색 폰트 적용)
+                // 상단 삭제 알림 배너
                 AnimatedVisibility(
                     visible = topMessage != null,
                     enter = fadeIn() + expandVertically(),
@@ -212,7 +225,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                         Text(
                             text = topMessage ?: "",
                             modifier = Modifier.padding(8.dp),
-                            color = Color.Red, // 빨간색 폰트
+                            color = Color.Red,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -224,7 +237,8 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    // LazyColumn에 스크롤 상태(listState) 연결
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val dummy = updateTrigger
                         items(table.orders.toList()) { order ->
                             OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
@@ -240,14 +254,16 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(2f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> 
+                    MenuButton(index, table, onItemModified = scrollToItem) { updateTrigger++ } 
+                }
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             
-            // 상단 삭제 알림 배너 (빨간색 폰트 적용)
+            // 상단 삭제 알림 배너
             AnimatedVisibility(
                 visible = topMessage != null,
                 enter = fadeIn() + expandVertically(),
@@ -261,7 +277,7 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                     Text(
                         text = topMessage ?: "",
                         modifier = Modifier.padding(8.dp),
-                        color = Color.Red, // 빨간색 폰트
+                        color = Color.Red,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
@@ -273,7 +289,8 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                // LazyColumn에 스크롤 상태(listState) 연결
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp)) {
                     val dummy = updateTrigger
                     items(table.orders.toList()) { order ->
                         OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
@@ -289,7 +306,9 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1.8f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> 
+                    MenuButton(index, table, onItemModified = scrollToItem) { updateTrigger++ } 
+                }
             }
         }
     }
@@ -301,7 +320,6 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. 메뉴명
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
@@ -310,7 +328,6 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
             overflow = TextOverflow.Ellipsis
         )
         
-        // 2. 수량 (가운데 정렬)
         Text(
             text = "${order.quantity}개", 
             style = MaterialTheme.typography.bodyLarge, 
@@ -318,14 +335,13 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
             textAlign = TextAlign.Center
         )
         
-        // 3. 삭제 버튼
         Button(
             onClick = {
                 if (order.quantity > 0) {
                     order.quantity--
                     if (order.quantity == 0) table.orders.remove(order)
                     DataManager.saveTables()
-                    onMessage("${order.menuItem.name} 1개 취소됨") // 삭제 시 메시지 전달
+                    onMessage("${order.menuItem.name} 1개 취소됨")
                     onUpdate()
                 }
             },
@@ -338,9 +354,9 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
     }
 }
 
-// 💡 메뉴 버튼 터치 시 진동(Vibration) 추가 및 추가 메시지는 뜨지 않도록 수정 완료
+// 💡 메뉴 버튼 터치 시 진동 + 자동 스크롤 연동
 @Composable
-fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
+fun MenuButton(index: Int, table: Table, onItemModified: (Int) -> Unit, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -364,12 +380,14 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                         isPressed = false
                     },
                     onTap = {
-                        // 1. 메뉴 추가 로직
-                        val existing = table.orders.find { it.menuItem.name == menu.name }
-                        if (existing != null) {
-                            existing.quantity++
+                        // 1. 메뉴 추가 및 해당 아이템의 리스트 인덱스 확인
+                        val existingIndex = table.orders.indexOfFirst { it.menuItem.name == menu.name }
+                        val targetIndex = if (existingIndex != -1) {
+                            table.orders[existingIndex].quantity++
+                            existingIndex // 기존 메뉴 인덱스
                         } else {
                             table.orders.add(OrderItem(menu, 1))
+                            table.orders.size - 1 // 새 메뉴가 추가된 마지막 인덱스
                         }
                         DataManager.saveTables()
 
@@ -390,11 +408,12 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                                 vibrator.vibrate(40)
                             }
                         } catch (e: Exception) {
-                            // 권한 문제 등으로 진동을 지원하지 않는 기기 예외 처리 (무시)
+                            // 무시
                         }
 
-                        // 추가 시에는 상단 메시지를 호출하지 않음
+                        // UI 업데이트 트리거 후 스크롤 호출
                         onUpdate()
+                        onItemModified(targetIndex)
                     }
                 )
             },
