@@ -62,7 +62,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// 💡 시스템 설정을 저장하고 즉각 반영하기 위한 상태 관리 객체
 object SettingsManager {
     private const val PREFS_NAME = "JangjakPosSettings"
 
@@ -71,7 +70,6 @@ object SettingsManager {
     var tableColorIndex by mutableStateOf(0)
     var menuColorIndex by mutableStateOf(0)
 
-    // 추천 색상 5가지 (눈이 편안한 파스텔톤)
     val recommendedColors = listOf(
         Color(0xFFFFFFFF), // 0: 기본 (흰색)
         Color(0xFFD3E3FD), // 1: 연한 파랑
@@ -117,7 +115,7 @@ fun PosApp() {
         composable("admin") { AdminScreen(navController) }
         composable("menu_settings") { MenuSettingsScreen(navController) }
         composable("password_settings") { PasswordSettingsScreen(navController) }
-        composable("system_settings") { SystemSettingsScreen(navController) } // 💡 시스템 설정 라우트 추가
+        composable("system_settings") { SystemSettingsScreen(navController) } 
     }
 }
 
@@ -174,7 +172,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                     modifier = Modifier.padding(6.dp).fillMaxWidth().height(160.dp).clickable {
                         navController.navigate("order/${table.id}")
                     },
-                    // 💡 사용자가 선택한 테이블 색상 반영
                     colors = CardDefaults.cardColors(containerColor = SettingsManager.recommendedColors[SettingsManager.tableColorIndex]),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
@@ -479,16 +476,18 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                         DataManager.saveTables()
 
                         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                        when (audioManager.ringerMode) {
-                            AudioManager.RINGER_MODE_NORMAL -> {
+                        val ringerMode = audioManager.ringerMode
+
+                        if (ringerMode != AudioManager.RINGER_MODE_SILENT) {
+                            if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
                                 try {
-                                    // 💡 시스템 설정에서 선택된 볼륨 적용
                                     val volume = SettingsManager.volume 
                                     if (volume > 0) {
-                                        val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, volume)
-                                        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 15) 
+                                        val toneGen = ToneGenerator(AudioManager.STREAM_SYSTEM, volume)
+                                        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 30) 
+                                        
                                         coroutineScope.launch {
-                                            delay(50L)
+                                            delay(250L)
                                             toneGen.release()
                                         }
                                     }
@@ -496,27 +495,25 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                                     // 무시
                                 }
                             }
-                            AudioManager.RINGER_MODE_VIBRATE -> {
-                                // 💡 시스템 설정에서 진동이 켜져 있을 때만 진동 울림
-                                if (SettingsManager.isVibrationEnabled) {
-                                    try {
-                                        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                                            vibratorManager.defaultVibrator
-                                        } else {
-                                            @Suppress("DEPRECATION")
-                                            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                                        }
-
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                            vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
-                                        } else {
-                                            @Suppress("DEPRECATION")
-                                            vibrator.vibrate(40)
-                                        }
-                                    } catch (e: Exception) {
-                                        // 무시
+                            
+                            if (SettingsManager.isVibrationEnabled) {
+                                try {
+                                    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                                        vibratorManager.defaultVibrator
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                                     }
+
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator.vibrate(30)
+                                    }
+                                } catch (e: Exception) {
+                                    // 무시
                                 }
                             }
                         }
@@ -526,7 +523,6 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                     }
                 )
             },
-        // 💡 사용자가 선택한 메뉴 색상 반영
         colors = CardDefaults.cardColors(containerColor = SettingsManager.recommendedColors[SettingsManager.menuColorIndex]),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -744,7 +740,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(28.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
-                    DropdownMenuItem(text = { Text("시스템 설정") }, onClick = { expandedMenu = false; navController.navigate("system_settings") }) // 💡 추가됨
+                    DropdownMenuItem(text = { Text("시스템 설정") }, onClick = { expandedMenu = false; navController.navigate("system_settings") }) 
                     DropdownMenuItem(text = { Text("메뉴 관리") }, onClick = { expandedMenu = false; navController.navigate("menu_settings") })
                     DropdownMenuItem(text = { Text("비밀번호 변경") }, onClick = { expandedMenu = false; navController.navigate("password_settings") })
                     Divider()
@@ -833,12 +829,11 @@ fun AdminReceiptCard(receipt: Receipt, numFormat: NumberFormat) {
     }
 }
 
-// 💡 새롭게 추가된 시스템 설정 화면
 @Composable
 fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope() // 💡 테스트 소리 재생을 위한 코루틴 추가
     
-    // UI 조작용 로컬 상태
     var tempVolume by remember { mutableStateOf(SettingsManager.volume.toFloat()) }
     var tempVibration by remember { mutableStateOf(SettingsManager.isVibrationEnabled) }
     var tempTableColor by remember { mutableStateOf(SettingsManager.tableColorIndex) }
@@ -873,6 +868,22 @@ fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
                 Slider(
                     value = tempVolume,
                     onValueChange = { tempVolume = it },
+                    // 💡 슬라이더 조절 후 손을 뗄 때 테스트 틱 소리 재생
+                    onValueChangeFinished = {
+                        try {
+                            val volume = tempVolume.toInt()
+                            if (volume > 0) {
+                                val toneGen = ToneGenerator(AudioManager.STREAM_SYSTEM, volume)
+                                toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 30) // 30ms 틱 소리
+                                coroutineScope.launch {
+                                    delay(250L)
+                                    toneGen.release()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // 무시
+                        }
+                    },
                     valueRange = 0f..100f,
                     modifier = Modifier.fillMaxWidth()
                 )
