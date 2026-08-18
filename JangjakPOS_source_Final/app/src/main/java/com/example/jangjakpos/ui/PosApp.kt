@@ -1,6 +1,13 @@
 package com.example.jangjakpos.ui
 
+import android.content.Context
 import android.content.res.Configuration
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -169,16 +176,38 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     val table = DataManager.tables.find { it.id == tableId } ?: return
     var updateTrigger by remember { mutableStateOf(0) }
 
-    // 상단 삭제 알림 메시지 상태 관리
-    var topMessage by remember { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    var topMessage by remember { mutableStateOf<String?>(null) }
+    var highlightedItemName by remember { mutableStateOf<String?>(null) }
 
     fun showTopMessage(msg: String) {
         topMessage = msg
         coroutineScope.launch {
-            delay(1500L) // 1.5초 동안 표시
+            delay(1500L)
             if (topMessage == msg) {
                 topMessage = null
+            }
+        }
+    }
+
+    val highlightItem: (String) -> Unit = { name ->
+        highlightedItemName = name
+        coroutineScope.launch {
+            delay(1000L)
+            if (highlightedItemName == name) {
+                highlightedItemName = null 
+            }
+        }
+    }
+
+    val onItemModified: (Int, String) -> Unit = { index, name ->
+        highlightItem(name)
+        coroutineScope.launch {
+            delay(50) 
+            if (index in 0 until table.orders.size) {
+                listState.animateScrollToItem(index)
             }
         }
     }
@@ -193,7 +222,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
                 
-                // 상단 삭제 알림 배너 (빨간색 폰트)
                 AnimatedVisibility(
                     visible = topMessage != null,
                     enter = fadeIn() + expandVertically(),
@@ -219,10 +247,16 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val dummy = updateTrigger
                         items(table.orders.toList()) { order ->
-                            OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
+                            OrderListItem(
+                                order = order, 
+                                table = table, 
+                                isHighlighted = (order.menuItem.name == highlightedItemName),
+                                onMessage = { msg -> showTopMessage(msg) },
+                                onHighlight = { highlightItem(order.menuItem.name) }
+                            ) { updateTrigger++ }
                         }
                     }
                 }
@@ -235,14 +269,15 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(2f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> 
+                    MenuButton(index, table, onItemModified = onItemModified) { updateTrigger++ } 
+                }
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             
-            // 상단 삭제 알림 배너 (빨간색 폰트)
             AnimatedVisibility(
                 visible = topMessage != null,
                 enter = fadeIn() + expandVertically(),
@@ -268,10 +303,16 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp)) {
                     val dummy = updateTrigger
                     items(table.orders.toList()) { order ->
-                        OrderListItem(order, table, onMessage = { msg -> showTopMessage(msg) }) { updateTrigger++ }
+                        OrderListItem(
+                            order = order, 
+                            table = table, 
+                            isHighlighted = (order.menuItem.name == highlightedItemName),
+                            onMessage = { msg -> showTopMessage(msg) },
+                            onHighlight = { highlightItem(order.menuItem.name) }
+                        ) { updateTrigger++ }
                     }
                 }
             }
@@ -284,14 +325,29 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             }
             
             LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1.8f)) {
-                items(DataManager.menuItems.size) { index -> MenuButton(index, table) { updateTrigger++ } }
+                items(DataManager.menuItems.size) { index -> 
+                    MenuButton(index, table, onItemModified = onItemModified) { updateTrigger++ } 
+                }
             }
         }
     }
 }
 
 @Composable
-fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, onUpdate: () -> Unit) {
+fun OrderListItem(
+    order: OrderItem, 
+    table: Table, 
+    isHighlighted: Boolean,
+    onMessage: (String) -> Unit, 
+    onHighlight: () -> Unit,
+    onUpdate: () -> Unit
+) {
+    val textColor by animateColorAsState(
+        targetValue = if (isHighlighted) Color.Red else MaterialTheme.colorScheme.onSurface,
+        animationSpec = tween(durationMillis = 500), 
+        label = "textColorAnimation"
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -299,6 +355,7 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
+            color = textColor, 
             modifier = Modifier.weight(1.5f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -307,6 +364,7 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
         Text(
             text = "${order.quantity}개", 
             style = MaterialTheme.typography.bodyLarge, 
+            color = textColor, 
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center
         )
@@ -315,7 +373,11 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
             onClick = {
                 if (order.quantity > 0) {
                     order.quantity--
-                    if (order.quantity == 0) table.orders.remove(order)
+                    if (order.quantity == 0) {
+                        table.orders.remove(order)
+                    } else {
+                        onHighlight() 
+                    }
                     DataManager.saveTables()
                     onMessage("${order.menuItem.name} 1개 취소됨")
                     onUpdate()
@@ -330,10 +392,13 @@ fun OrderListItem(order: OrderItem, table: Table, onMessage: (String) -> Unit, o
     }
 }
 
+// 💡 버튼 크기 고정 및 틱(Tick) 사운드 적용
 @Composable
-fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
+fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope() 
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
@@ -345,6 +410,7 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
         modifier = Modifier
             .padding(6.dp)
             .fillMaxWidth()
+            .height(110.dp) 
             .scale(scale)
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -354,15 +420,57 @@ fun MenuButton(index: Int, table: Table, onUpdate: () -> Unit) {
                         isPressed = false
                     },
                     onTap = {
-                        val existing = table.orders.find { it.menuItem.name == menu.name }
-                        if (existing != null) {
-                            existing.quantity++
+                        val existingIndex = table.orders.indexOfFirst { it.menuItem.name == menu.name }
+                        val targetIndex = if (existingIndex != -1) {
+                            table.orders[existingIndex].quantity++
+                            existingIndex
                         } else {
                             table.orders.add(OrderItem(menu, 1))
+                            table.orders.size - 1
                         }
                         DataManager.saveTables()
-                        // 추가 시에는 메시지를 호출하지 않음
+
+                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        when (audioManager.ringerMode) {
+                            AudioManager.RINGER_MODE_NORMAL -> {
+                                try {
+                                    // 💡 볼륨을 80으로 살짝 낮추고, 재생 시간을 15ms로 극단적으로 줄여서 기계적인 '틱' 소리를 만듭니다.
+                                    val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+                                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 15) 
+                                    
+                                    // 재생 후 리소스 해제
+                                    coroutineScope.launch {
+                                        delay(50L)
+                                        toneGen.release()
+                                    }
+                                } catch (e: Exception) {
+                                    // 무시
+                                }
+                            }
+                            AudioManager.RINGER_MODE_VIBRATE -> {
+                                try {
+                                    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                                        vibratorManager.defaultVibrator
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                    }
+
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator.vibrate(40)
+                                    }
+                                } catch (e: Exception) {
+                                    // 무시
+                                }
+                            }
+                        }
+
                         onUpdate()
+                        onItemModified(targetIndex, menu.name)
                     }
                 )
             },
