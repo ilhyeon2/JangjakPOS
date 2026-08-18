@@ -1,6 +1,7 @@
 package com.example.jangjakpos.ui
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -14,6 +15,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -25,6 +28,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +38,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,8 +62,50 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+// 💡 시스템 설정을 저장하고 즉각 반영하기 위한 상태 관리 객체
+object SettingsManager {
+    private const val PREFS_NAME = "JangjakPosSettings"
+
+    var volume by mutableStateOf(60)
+    var isVibrationEnabled by mutableStateOf(true)
+    var tableColorIndex by mutableStateOf(0)
+    var menuColorIndex by mutableStateOf(0)
+
+    // 추천 색상 5가지 (눈이 편안한 파스텔톤)
+    val recommendedColors = listOf(
+        Color(0xFFFFFFFF), // 0: 기본 (흰색)
+        Color(0xFFD3E3FD), // 1: 연한 파랑
+        Color(0xFFC8E6C9), // 2: 연한 초록
+        Color(0xFFFFE0B2), // 3: 연한 주황
+        Color(0xFFF8BBD0)  // 4: 연한 분홍
+    )
+
+    fun init(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        volume = prefs.getInt("volume", 60)
+        isVibrationEnabled = prefs.getBoolean("vibration", true)
+        tableColorIndex = prefs.getInt("tableColor", 0)
+        menuColorIndex = prefs.getInt("menuColor", 0)
+    }
+
+    fun save(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt("volume", volume)
+            .putBoolean("vibration", isVibrationEnabled)
+            .putInt("tableColor", tableColorIndex)
+            .putInt("menuColor", menuColorIndex)
+            .apply()
+    }
+}
+
 @Composable
 fun PosApp() {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        SettingsManager.init(context)
+    }
+
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "main") {
         composable("main") { MainScreen(navController) }
@@ -70,6 +117,7 @@ fun PosApp() {
         composable("admin") { AdminScreen(navController) }
         composable("menu_settings") { MenuSettingsScreen(navController) }
         composable("password_settings") { PasswordSettingsScreen(navController) }
+        composable("system_settings") { SystemSettingsScreen(navController) } // 💡 시스템 설정 라우트 추가
     }
 }
 
@@ -126,7 +174,8 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                     modifier = Modifier.padding(6.dp).fillMaxWidth().height(160.dp).clickable {
                         navController.navigate("order/${table.id}")
                     },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    // 💡 사용자가 선택한 테이블 색상 반영
+                    colors = CardDefaults.cardColors(containerColor = SettingsManager.recommendedColors[SettingsManager.tableColorIndex]),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
@@ -145,7 +194,7 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                                     Text(
                                         text = "외 ${table.orders.size - 1}개",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color.Gray
+                                        color = Color.DarkGray
                                     )
                                 }
                             } else {
@@ -392,7 +441,6 @@ fun OrderListItem(
     }
 }
 
-// 💡 버튼 크기 고정 및 틱(Tick) 사운드 적용
 @Composable
 fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
@@ -434,37 +482,41 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                         when (audioManager.ringerMode) {
                             AudioManager.RINGER_MODE_NORMAL -> {
                                 try {
-                                    // 💡 볼륨을 80으로 살짝 낮추고, 재생 시간을 15ms로 극단적으로 줄여서 기계적인 '틱' 소리를 만듭니다.
-                                    val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-                                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 15) 
-                                    
-                                    // 재생 후 리소스 해제
-                                    coroutineScope.launch {
-                                        delay(50L)
-                                        toneGen.release()
+                                    // 💡 시스템 설정에서 선택된 볼륨 적용
+                                    val volume = SettingsManager.volume 
+                                    if (volume > 0) {
+                                        val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, volume)
+                                        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 15) 
+                                        coroutineScope.launch {
+                                            delay(50L)
+                                            toneGen.release()
+                                        }
                                     }
                                 } catch (e: Exception) {
                                     // 무시
                                 }
                             }
                             AudioManager.RINGER_MODE_VIBRATE -> {
-                                try {
-                                    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                                        vibratorManager.defaultVibrator
-                                    } else {
-                                        @Suppress("DEPRECATION")
-                                        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                                    }
+                                // 💡 시스템 설정에서 진동이 켜져 있을 때만 진동 울림
+                                if (SettingsManager.isVibrationEnabled) {
+                                    try {
+                                        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                                            vibratorManager.defaultVibrator
+                                        } else {
+                                            @Suppress("DEPRECATION")
+                                            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                        }
 
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
-                                    } else {
-                                        @Suppress("DEPRECATION")
-                                        vibrator.vibrate(40)
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                            vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+                                        } else {
+                                            @Suppress("DEPRECATION")
+                                            vibrator.vibrate(40)
+                                        }
+                                    } catch (e: Exception) {
+                                        // 무시
                                     }
-                                } catch (e: Exception) {
-                                    // 무시
                                 }
                             }
                         }
@@ -474,7 +526,8 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                     }
                 )
             },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        // 💡 사용자가 선택한 메뉴 색상 반영
+        colors = CardDefaults.cardColors(containerColor = SettingsManager.recommendedColors[SettingsManager.menuColorIndex]),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -691,6 +744,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(28.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
+                    DropdownMenuItem(text = { Text("시스템 설정") }, onClick = { expandedMenu = false; navController.navigate("system_settings") }) // 💡 추가됨
                     DropdownMenuItem(text = { Text("메뉴 관리") }, onClick = { expandedMenu = false; navController.navigate("menu_settings") })
                     DropdownMenuItem(text = { Text("비밀번호 변경") }, onClick = { expandedMenu = false; navController.navigate("password_settings") })
                     Divider()
@@ -774,6 +828,108 @@ fun AdminReceiptCard(receipt: Receipt, numFormat: NumberFormat) {
             Spacer(modifier = Modifier.height(4.dp))
             receipt.items.forEach { item ->
                 Text("- ${item.menuItem.name} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+// 💡 새롭게 추가된 시스템 설정 화면
+@Composable
+fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
+    val context = LocalContext.current
+    
+    // UI 조작용 로컬 상태
+    var tempVolume by remember { mutableStateOf(SettingsManager.volume.toFloat()) }
+    var tempVibration by remember { mutableStateOf(SettingsManager.isVibrationEnabled) }
+    var tempTableColor by remember { mutableStateOf(SettingsManager.tableColorIndex) }
+    var tempMenuColor by remember { mutableStateOf(SettingsManager.menuColorIndex) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Default.ArrowBack, "뒤로가기") }
+            Text("시스템 설정", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Button(
+                onClick = {
+                    SettingsManager.volume = tempVolume.toInt()
+                    SettingsManager.isVibrationEnabled = tempVibration
+                    SettingsManager.tableColorIndex = tempTableColor
+                    SettingsManager.menuColorIndex = tempMenuColor
+                    SettingsManager.save(context)
+                    Toast.makeText(context, "시스템 설정이 저장되었습니다.", Toast.LENGTH_SHORT).show()
+                    navController.popBackStack()
+                }, 
+                modifier = Modifier.height(40.dp)
+            ) { Text("저장") }
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("소리/진동 설정", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text("터치음 볼륨: ${tempVolume.toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                Slider(
+                    value = tempVolume,
+                    onValueChange = { tempVolume = it },
+                    valueRange = 0f..100f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("버튼 터치 진동 켜기", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = tempVibration, onCheckedChange = { tempVibration = it })
+                }
+            }
+        }
+        
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("화면 테마 색상 설정", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text("메인 화면 테이블 카드 색상", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    SettingsManager.recommendedColors.forEachIndexed { index, color ->
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (tempTableColor == index) 3.dp else 1.dp, 
+                                    color = if (tempTableColor == index) MaterialTheme.colorScheme.primary else Color.LightGray, 
+                                    shape = CircleShape
+                                )
+                                .clickable { tempTableColor = index }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Text("주문 화면 메뉴 버튼 색상", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    SettingsManager.recommendedColors.forEachIndexed { index, color ->
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (tempMenuColor == index) 3.dp else 1.dp, 
+                                    color = if (tempMenuColor == index) MaterialTheme.colorScheme.primary else Color.LightGray, 
+                                    shape = CircleShape
+                                )
+                                .clickable { tempMenuColor = index }
+                        )
+                    }
+                }
             }
         }
     }
