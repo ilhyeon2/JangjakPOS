@@ -2,10 +2,12 @@ package com.example.jangjakpos.ui
 
 import android.content.Context
 import android.content.res.Configuration
+import android.media.AudioManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.SoundEffectConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -178,7 +181,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     val coroutineScope = rememberCoroutineScope()
 
     var topMessage by remember { mutableStateOf<String?>(null) }
-    // 💡 변경된 메뉴의 이름을 저장하여 하이라이트 애니메이션을 발동시키는 상태 변수
     var highlightedItemName by remember { mutableStateOf<String?>(null) }
 
     fun showTopMessage(msg: String) {
@@ -191,18 +193,16 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
         }
     }
 
-    // 💡 아이템 색상을 빨간색으로 변경하고 1초 뒤 원래 상태로 되돌리는 함수
     val highlightItem: (String) -> Unit = { name ->
         highlightedItemName = name
         coroutineScope.launch {
-            delay(1000L) // 1초 동안 빨간색 유지
+            delay(1000L)
             if (highlightedItemName == name) {
-                highlightedItemName = null // 원래 색으로 자연스럽게 돌아감
+                highlightedItemName = null 
             }
         }
     }
 
-    // 스크롤 및 하이라이트 동시 처리 콜백
     val onItemModified: (Int, String) -> Unit = { index, name ->
         highlightItem(name)
         coroutineScope.launch {
@@ -334,7 +334,6 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     }
 }
 
-// 💡 애니메이션 색상 처리를 반영한 주문 리스트 아이템
 @Composable
 fun OrderListItem(
     order: OrderItem, 
@@ -344,10 +343,9 @@ fun OrderListItem(
     onHighlight: () -> Unit,
     onUpdate: () -> Unit
 ) {
-    // 하이라이트 여부에 따라 부드럽게 색상이 변환되는 애니메이션 상태
     val textColor by animateColorAsState(
         targetValue = if (isHighlighted) Color.Red else MaterialTheme.colorScheme.onSurface,
-        animationSpec = tween(durationMillis = 500), // 자연스러운 색상 전환(페이드) 효과
+        animationSpec = tween(durationMillis = 500), 
         label = "textColorAnimation"
     )
 
@@ -358,7 +356,7 @@ fun OrderListItem(
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
-            color = textColor, // 애니메이션이 적용된 색상 변수 사용
+            color = textColor, 
             modifier = Modifier.weight(1.5f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -367,7 +365,7 @@ fun OrderListItem(
         Text(
             text = "${order.quantity}개", 
             style = MaterialTheme.typography.bodyLarge, 
-            color = textColor, // 애니메이션이 적용된 색상 변수 사용
+            color = textColor, 
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center
         )
@@ -379,7 +377,7 @@ fun OrderListItem(
                     if (order.quantity == 0) {
                         table.orders.remove(order)
                     } else {
-                        onHighlight() // 수량 감소 시에도 변경 여부를 시각적으로 하이라이트
+                        onHighlight() 
                     }
                     DataManager.saveTables()
                     onMessage("${order.menuItem.name} 1개 취소됨")
@@ -395,11 +393,13 @@ fun OrderListItem(
     }
 }
 
+// 💡 버튼 크기 고정 및 사운드/진동 자동 설정 연동
 @Composable
 fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val view = LocalView.current // 💡 시스템 뷰 호출 (클릭음 재생용)
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
@@ -411,6 +411,7 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
         modifier = Modifier
             .padding(6.dp)
             .fillMaxWidth()
+            .height(110.dp) // 💡 모든 기기 및 메뉴 이름 길이에 상관없이 버튼 높이 고정 통일
             .scale(scale)
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -430,27 +431,39 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                         }
                         DataManager.saveTables()
 
-                        try {
-                            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                                vibratorManager.defaultVibrator
-                            } else {
-                                @Suppress("DEPRECATION")
-                                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                        // 💡 기기의 시스템 소리 설정에 따라 클릭음 또는 진동 적용
+                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        when (audioManager.ringerMode) {
+                            AudioManager.RINGER_MODE_NORMAL -> {
+                                // 벨소리 모드일 땐 안드로이드 기본 클릭(터치)음 발생
+                                view.playSoundEffect(SoundEffectConstants.CLICK)
                             }
+                            AudioManager.RINGER_MODE_VIBRATE -> {
+                                // 진동 모드일 땐 짧은 햅틱 진동 발생
+                                try {
+                                    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                                        vibratorManager.defaultVibrator
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                    }
 
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
-                            } else {
-                                @Suppress("DEPRECATION")
-                                vibrator.vibrate(40)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator.vibrate(40)
+                                    }
+                                } catch (e: Exception) {
+                                    // 무시
+                                }
                             }
-                        } catch (e: Exception) {
-                            // 무시
+                            // 무음(RINGER_MODE_SILENT) 일 때는 반응 없음
                         }
 
                         onUpdate()
-                        onItemModified(targetIndex, menu.name) // 💡 인덱스와 함께 메뉴명도 전달
+                        onItemModified(targetIndex, menu.name)
                     }
                 )
             },
