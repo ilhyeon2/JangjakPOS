@@ -3,11 +3,11 @@ package com.example.jangjakpos.ui
 import android.content.Context
 import android.content.res.Configuration
 import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.view.SoundEffectConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,7 +40,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -393,13 +392,13 @@ fun OrderListItem(
     }
 }
 
-// 💡 버튼 크기 고정 및 사운드/진동 자동 설정 연동
+// 💡 버튼 크기 고정 및 틱(Tick) 사운드 적용
 @Composable
 fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, onUpdate: () -> Unit) {
     val menu = DataManager.menuItems[index]
     var isPressed by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val view = LocalView.current // 💡 시스템 뷰 호출 (클릭음 재생용)
+    val coroutineScope = rememberCoroutineScope() 
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
@@ -411,7 +410,7 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
         modifier = Modifier
             .padding(6.dp)
             .fillMaxWidth()
-            .height(110.dp) // 💡 모든 기기 및 메뉴 이름 길이에 상관없이 버튼 높이 고정 통일
+            .height(110.dp) 
             .scale(scale)
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -431,15 +430,24 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                         }
                         DataManager.saveTables()
 
-                        // 💡 기기의 시스템 소리 설정에 따라 클릭음 또는 진동 적용
                         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
                         when (audioManager.ringerMode) {
                             AudioManager.RINGER_MODE_NORMAL -> {
-                                // 벨소리 모드일 땐 안드로이드 기본 클릭(터치)음 발생
-                                view.playSoundEffect(SoundEffectConstants.CLICK)
+                                try {
+                                    // 💡 볼륨을 80으로 살짝 낮추고, 재생 시간을 15ms로 극단적으로 줄여서 기계적인 '틱' 소리를 만듭니다.
+                                    val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+                                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 15) 
+                                    
+                                    // 재생 후 리소스 해제
+                                    coroutineScope.launch {
+                                        delay(50L)
+                                        toneGen.release()
+                                    }
+                                } catch (e: Exception) {
+                                    // 무시
+                                }
                             }
                             AudioManager.RINGER_MODE_VIBRATE -> {
-                                // 진동 모드일 땐 짧은 햅틱 진동 발생
                                 try {
                                     val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -459,7 +467,6 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                                     // 무시
                                 }
                             }
-                            // 무음(RINGER_MODE_SILENT) 일 때는 반응 없음
                         }
 
                         onUpdate()
