@@ -1,1 +1,2 @@
-https://github.com/ilhyeon2/JangjakPOS/actions/runs/32125071812/artifacts/9320039668
+1.2.0
+https://github.com/ilhyeon2/JangjakPOS/releases/download/v1.2.0/app-debug.apk
