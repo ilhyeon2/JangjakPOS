@@ -1,5 +1,4 @@
 package com.example.jangjakpos.ui
-
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Configuration
