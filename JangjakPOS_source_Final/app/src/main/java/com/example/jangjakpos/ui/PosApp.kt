@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat // 💡 추가된 부분
 import androidx.core.content.FileProvider
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
@@ -112,7 +113,14 @@ fun downloadAndInstallApk(context: Context, apkUrl: String) {
             }
         }
     }
-    context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+    
+    // 💡 Android 14 (API 34) 보안 에러 해결을 위해 ContextCompat.RECEIVER_EXPORTED 플래그 추가
+    ContextCompat.registerReceiver(
+        context,
+        receiver,
+        IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+        ContextCompat.RECEIVER_EXPORTED
+    )
 }
 
 object SettingsManager {
@@ -742,7 +750,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
-    // 💡 에러 상세 내용을 보여주기 위한 다이얼로그 상태 변수 추가
     var updateErrorDetails by remember { mutableStateOf<String?>(null) }
     
     val currentAppVersion = remember { getAppVersion(context) }
@@ -776,7 +783,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }.sumOf { it.totalAmount }
 
-    // 💡 에러 상세 내용을 띄워주는 다이얼로그
     if (updateErrorDetails != null) {
         AlertDialog(
             onDismissRequest = { updateErrorDetails = null },
@@ -859,7 +865,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
-                                    // 💡 에러 발생 시 토스트 대신 상세 팝업창을 띄우도록 설정
                                     updateErrorDetails = e.stackTraceToString()
                                 }
                             }
