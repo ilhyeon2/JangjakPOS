@@ -72,7 +72,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// 💡 시스템에 설치된 앱의 버전을 동적으로 가져오는 함수
 fun getAppVersion(context: Context): String {
     return try {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
@@ -81,7 +80,6 @@ fun getAppVersion(context: Context): String {
     }
 }
 
-// 💡 APK 다운로드 및 설치 로직
 fun downloadAndInstallApk(context: Context, apkUrl: String) {
     val fileName = "JangjakPOS_update.apk"
     val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -126,11 +124,11 @@ object SettingsManager {
     var menuColorIndex by mutableStateOf(0)
 
     val recommendedColors = listOf(
-        Color(0xFFFFFFFF), // 0: 기본 (흰색)
-        Color(0xFFD3E3FD), // 1: 연한 파랑
-        Color(0xFFC8E6C9), // 2: 연한 초록
-        Color(0xFFFFE0B2), // 3: 연한 주황
-        Color(0xFFF8BBD0)  // 4: 연한 분홍
+        Color(0xFFFFFFFF), 
+        Color(0xFFD3E3FD), 
+        Color(0xFFC8E6C9), 
+        Color(0xFFFFE0B2), 
+        Color(0xFFF8BBD0)  
     )
 
     fun init(context: Context) {
@@ -180,7 +178,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val context = LocalContext.current
     
-    // 💡 동적으로 읽어온 앱 버전을 상태로 저장
     val currentAppVersion = remember { getAppVersion(context) }
 
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -270,7 +267,6 @@ fun MainScreen(navController: androidx.navigation.NavController) {
             }
         }
 
-        // 💡 화면 우측 하단에 버전을 작게 표시
         Text(
             text = "ver. $currentAppVersion",
             style = MaterialTheme.typography.labelMedium,
@@ -562,7 +558,6 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    // 무시
                                 }
                             }
                             
@@ -583,7 +578,6 @@ fun MenuButton(index: Int, table: Table, onItemModified: (Int, String) -> Unit, 
                                         vibrator.vibrate(30)
                                     }
                                 } catch (e: Exception) {
-                                    // 무시
                                 }
                             }
                         }
@@ -748,7 +742,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
-    // 💡 업데이트 로직에서 비교할 현재 동적 버전
     val currentAppVersion = remember { getAppVersion(context) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -815,7 +808,7 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
                     
-                    // 💡 앱 업데이트 확인 (버전 비교 및 설치 연동)
+                    // 💡 예외 발생 시 e.message 를 출력하여 원인을 파악하도록 수정한 부분
                     DropdownMenuItem(text = { Text("앱 업데이트 확인") }, onClick = { 
                         expandedMenu = false
                         coroutineScope.launch(Dispatchers.IO) {
@@ -845,7 +838,8 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "업데이트 확인 실패: 네트워크 연결을 확인하세요.", Toast.LENGTH_SHORT).show()
+                                    // 💡 에러 원인을 직접 화면에 출력
+                                    Toast.makeText(context, "업데이트 실패 원인: ${e.message}", Toast.LENGTH_LONG).show()
                                 }
                             }
                         }
