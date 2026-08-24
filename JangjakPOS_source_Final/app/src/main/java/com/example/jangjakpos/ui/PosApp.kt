@@ -742,6 +742,9 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
+    // 💡 에러 상세 내용을 보여주기 위한 다이얼로그 상태 변수 추가
+    var updateErrorDetails by remember { mutableStateOf<String?>(null) }
+    
     val currentAppVersion = remember { getAppVersion(context) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -772,6 +775,25 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     val dailyReceipts = DataManager.receipts.filter { it.date.startsWith(selectedDayStr) }
     val dailyTotal = dailyReceipts.sumOf { it.totalAmount }
     val monthlyTotal = DataManager.receipts.filter { it.date.startsWith(selectedMonthStr) }.sumOf { it.totalAmount }
+
+    // 💡 에러 상세 내용을 띄워주는 다이얼로그
+    if (updateErrorDetails != null) {
+        AlertDialog(
+            onDismissRequest = { updateErrorDetails = null },
+            title = { Text("업데이트 오류 상세") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = updateErrorDetails!!, 
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { updateErrorDetails = null }) { Text("닫기") }
+            }
+        )
+    }
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
@@ -808,7 +830,6 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
                     
-                    // 💡 예외 발생 시 e.message 를 출력하여 원인을 파악하도록 수정한 부분
                     DropdownMenuItem(text = { Text("앱 업데이트 확인") }, onClick = { 
                         expandedMenu = false
                         coroutineScope.launch(Dispatchers.IO) {
@@ -838,8 +859,8 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
-                                    // 💡 에러 원인을 직접 화면에 출력
-                                    Toast.makeText(context, "업데이트 실패 원인: ${e.message}", Toast.LENGTH_LONG).show()
+                                    // 💡 에러 발생 시 토스트 대신 상세 팝업창을 띄우도록 설정
+                                    updateErrorDetails = e.stackTraceToString()
                                 }
                             }
                         }
