@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.jangjakpos">
     
+    <!-- 💡 앱 업데이트 확인 및 다운로드를 위한 통신 권한 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 💡 다운로드한 APK 파일의 자동 설치를 위한 권한 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <!-- 메뉴 버튼 터치 시 진동을 울리기 위한 권한 추가 -->
@@ -24,5 +29,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 💡 설치 파일(APK) 보안 공유를 위한 FileProvider 추가 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>
