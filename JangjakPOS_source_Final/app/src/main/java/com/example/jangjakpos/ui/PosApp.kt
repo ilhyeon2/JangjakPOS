@@ -1,11 +1,17 @@
 package com.example.jangjakpos.ui
 
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -53,14 +59,63 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
+import androidx.core.content.FileProvider
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+// 💡 시스템에 설치된 앱의 버전을 동적으로 가져오는 함수
+fun getAppVersion(context: Context): String {
+    return try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
+    } catch (e: Exception) {
+        "Unknown"
+    }
+}
+
+// 💡 APK 다운로드 및 설치 로직
+fun downloadAndInstallApk(context: Context, apkUrl: String) {
+    val fileName = "JangjakPOS_update.apk"
+    val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    
+    val file = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
+    if (file.exists()) file.delete()
+
+    val request = DownloadManager.Request(Uri.parse(apkUrl))
+        .setTitle("JangjakPOS 업데이트")
+        .setDescription("최신 버전 앱을 다운로드 중입니다...")
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
+
+    val downloadId = downloadManager.enqueue(request)
+
+    val receiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, intent: Intent?) {
+            val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+            if (id == downloadId && c != null) {
+                val downloadedFile = File(c.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
+                if (downloadedFile.exists()) {
+                    val uri = FileProvider.getUriForFile(c, "${c.packageName}.fileprovider", downloadedFile)
+                    val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "application/vnd.android.package-archive")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    }
+                    c.startActivity(installIntent)
+                }
+                c.unregisterReceiver(this)
+            }
+        }
+    }
+    context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+}
 
 object SettingsManager {
     private const val PREFS_NAME = "JangjakPosSettings"
@@ -123,6 +178,10 @@ fun PosApp() {
 fun MainScreen(navController: androidx.navigation.NavController) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val context = LocalContext.current
+    
+    // 💡 동적으로 읽어온 앱 버전을 상태로 저장
+    val currentAppVersion = remember { getAppVersion(context) }
 
     val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     var currentDate by remember { mutableStateOf(dayFormat.format(Date())) }
@@ -210,6 +269,17 @@ fun MainScreen(navController: androidx.navigation.NavController) {
                 }
             }
         }
+
+        // 💡 화면 우측 하단에 버전을 작게 표시
+        Text(
+            text = "ver. $currentAppVersion",
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.Gray,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, end = 8.dp),
+            textAlign = TextAlign.End
+        )
     }
 }
 
@@ -676,6 +746,10 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
     var showDatePicker by remember { mutableStateOf(false) }
     var expandedMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    // 💡 업데이트 로직에서 비교할 현재 동적 버전
+    val currentAppVersion = remember { getAppVersion(context) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         uri?.let {
@@ -740,6 +814,44 @@ fun AdminScreen(navController: androidx.navigation.NavController) {
                     Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(28.dp))
                 }
                 DropdownMenu(expanded = expandedMenu, onDismissRequest = { expandedMenu = false }) {
+                    
+                    // 💡 앱 업데이트 확인 (버전 비교 및 설치 연동)
+                    DropdownMenuItem(text = { Text("앱 업데이트 확인") }, onClick = { 
+                        expandedMenu = false
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val url = java.net.URL("https://raw.githubusercontent.com/ilhyeon2/JangjakPOS/main/release.txt")
+                                val text = url.readText().trim()
+                                val lines = text.lines().filter { it.isNotBlank() }
+                                
+                                withContext(Dispatchers.Main) {
+                                    if (lines.isNotEmpty()) {
+                                        val targetVersion = lines[0].trim()
+                                        val downloadLink = if (lines.size > 1) lines[1].trim() else ""
+                                        
+                                        if (targetVersion != currentAppVersion) {
+                                            if (downloadLink.startsWith("http")) {
+                                                Toast.makeText(context, "새 버전($targetVersion) 다운로드를 시작합니다...", Toast.LENGTH_SHORT).show()
+                                                downloadAndInstallApk(context, downloadLink)
+                                            } else {
+                                                Toast.makeText(context, "업데이트 링크가 누락되어 업데이트를 진행할 수 없습니다.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "현재 최신 버전($currentAppVersion)을 사용 중입니다.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "서버의 업데이트 정보를 읽을 수 없습니다.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "업데이트 확인 실패: 네트워크 연결을 확인하세요.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    })
+                    Divider()
+                    
                     DropdownMenuItem(text = { Text("시스템 설정") }, onClick = { expandedMenu = false; navController.navigate("system_settings") }) 
                     DropdownMenuItem(text = { Text("메뉴 관리") }, onClick = { expandedMenu = false; navController.navigate("menu_settings") })
                     DropdownMenuItem(text = { Text("비밀번호 변경") }, onClick = { expandedMenu = false; navController.navigate("password_settings") })
@@ -832,7 +944,7 @@ fun AdminReceiptCard(receipt: Receipt, numFormat: NumberFormat) {
 @Composable
 fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope() // 💡 테스트 소리 재생을 위한 코루틴 추가
+    val coroutineScope = rememberCoroutineScope()
     
     var tempVolume by remember { mutableStateOf(SettingsManager.volume.toFloat()) }
     var tempVibration by remember { mutableStateOf(SettingsManager.isVibrationEnabled) }
@@ -868,20 +980,18 @@ fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
                 Slider(
                     value = tempVolume,
                     onValueChange = { tempVolume = it },
-                    // 💡 슬라이더 조절 후 손을 뗄 때 테스트 틱 소리 재생
                     onValueChangeFinished = {
                         try {
                             val volume = tempVolume.toInt()
                             if (volume > 0) {
                                 val toneGen = ToneGenerator(AudioManager.STREAM_SYSTEM, volume)
-                                toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 30) // 30ms 틱 소리
+                                toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 30) 
                                 coroutineScope.launch {
                                     delay(250L)
                                     toneGen.release()
                                 }
                             }
                         } catch (e: Exception) {
-                            // 무시
                         }
                     },
                     valueRange = 0f..100f,
