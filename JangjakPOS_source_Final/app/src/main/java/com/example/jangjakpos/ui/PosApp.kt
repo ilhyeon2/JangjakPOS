@@ -1,4 +1,5 @@
 package com.example.jangjakpos.ui
+
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -58,7 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
-import androidx.core.content.ContextCompat // 💡 추가된 부분
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.navigation.compose.*
 import com.example.jangjakpos.data.*
@@ -113,7 +114,6 @@ fun downloadAndInstallApk(context: Context, apkUrl: String) {
         }
     }
     
-    // 💡 Android 14 (API 34) 보안 에러 해결을 위해 ContextCompat.RECEIVER_EXPORTED 플래그 추가
     ContextCompat.registerReceiver(
         context,
         receiver,
@@ -338,8 +338,15 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
 
     if (isLandscape) {
         Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+            // 주문 내역 영역 (왼쪽)
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
+                        Icon(Icons.Default.Home, contentDescription = "메인으로", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+                }
                 
                 AnimatedVisibility(
                     visible = topMessage != null,
@@ -387,15 +394,24 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
                 }
             }
             
-            LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(2f)) {
-                items(DataManager.menuItems.size) { index -> 
-                    MenuButton(index, table, onItemModified = onItemModified) { updateTrigger++ } 
+            // 메뉴 버튼 영역 (오른쪽 - 가로 폭을 살짝 줄이고 2열로 배치)
+            Box(modifier = Modifier.weight(1.6f).fillMaxHeight()) {
+                LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.fillMaxSize()) {
+                    items(DataManager.menuItems.size) { index -> 
+                        MenuButton(index, table, onItemModified = onItemModified) { updateTrigger++ } 
+                    }
                 }
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
+                    Icon(Icons.Default.Home, contentDescription = "메인으로", tint = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
+            }
             
             AnimatedVisibility(
                 visible = topMessage != null,
@@ -630,30 +646,49 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("정산 내역", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        // 정산 화면 상단 타이틀 및 홈버튼 (가로/세로 모두 적용)
+        Row(
+            modifier = Modifier.fillMaxWidth(), 
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
+        ) {
+            IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
+                Icon(Icons.Default.Home, contentDescription = "메인으로", tint = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("정산 내역", style = MaterialTheme.typography.headlineLarge)
+        }
+        
         Spacer(modifier = Modifier.height(16.dp))
         
         if (isLandscape) {
-            val leftItems = table.orders.take(6)
-            val centerItems = table.orders.drop(6).take(6)
-            val rightItems = table.orders.drop(12) 
-            
-            Row(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                    leftItems.forEach { order -> CheckoutItemRow(order, numFormat) }
+            // 💡 가로모드: 왼쪽은 주문 품목 리스트, 우측 가운데는 합계 및 버튼 고정
+            Row(modifier = Modifier.fillMaxSize()) {
+                Card(
+                    modifier = Modifier.weight(1.2f).fillMaxHeight().padding(end = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                        items(table.orders) { order ->
+                            CheckoutItemRow(order, numFormat)
+                            Divider(color = Color.LightGray, thickness = 0.5.dp)
+                        }
+                    }
                 }
-                Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                    centerItems.forEach { order -> CheckoutItemRow(order, numFormat) }
-                }
-                Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                    rightItems.forEach { order -> CheckoutItemRow(order, numFormat) }
-                    Spacer(modifier = Modifier.height(32.dp))
-                    Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                // 우측 가운데 고정 영역 (합계 + 취소/지급완료 버튼)
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text("합계: ${numFormat.format(totalAmount)}원", style = MaterialTheme.typography.headlineMedium)
+                    Spacer(modifier = Modifier.height(24.dp))
                     CheckoutActionButtons(tableId, totalAmount, table, navController, onCancel)
                 }
             }
         } else {
+            // 세로모드 기존 레이아웃 유지
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(table.orders) { order ->
                     CheckoutItemRow(order, numFormat)
@@ -672,23 +707,23 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
 
 @Composable
 fun CheckoutItemRow(order: OrderItem, numFormat: NumberFormat) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
             text = order.menuItem.name, 
             style = MaterialTheme.typography.bodyLarge, 
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1.5f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
+        Text("x ${order.quantity}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(0.5f), textAlign = TextAlign.Center)
         Text("${numFormat.format(order.menuItem.price * order.quantity)}원", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
     }
 }
 
 @Composable
 fun CheckoutActionButtons(tableId: Int, totalAmount: Int, table: Table, navController: androidx.navigation.NavController, onCancel: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-        Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp).padding(end = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onCancel, modifier = Modifier.weight(1f).height(55.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { 
             Text("취소") 
         }
         Button(onClick = {
@@ -698,7 +733,7 @@ fun CheckoutActionButtons(tableId: Int, totalAmount: Int, table: Table, navContr
             DataManager.saveReceipts()
             DataManager.clearTable(tableId)
             navController.popBackStack()
-        }, modifier = Modifier.weight(1f).height(55.dp).padding(start = 4.dp)) {
+        }, modifier = Modifier.weight(1f).height(55.dp)) {
             Text("지급완료")
         }
     }
