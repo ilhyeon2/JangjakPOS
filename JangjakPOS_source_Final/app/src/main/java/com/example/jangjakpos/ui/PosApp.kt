@@ -130,12 +130,18 @@ object SettingsManager {
     var tableColorIndex by mutableStateOf(0)
     var menuColorIndex by mutableStateOf(0)
 
+    // 💡 기존 파스텔 톤 5개 + 짙은 색상 5개 추가 (총 10개)
     val recommendedColors = listOf(
-        Color(0xFFFFFFFF), 
-        Color(0xFFD3E3FD), 
-        Color(0xFFC8E6C9), 
-        Color(0xFFFFE0B2), 
-        Color(0xFFF8BBD0)  
+        Color(0xFFFFFFFF), // 0: 기본 (흰색)
+        Color(0xFFD3E3FD), // 1: 연한 파랑
+        Color(0xFFC8E6C9), // 2: 연한 초록
+        Color(0xFFFFE0B2), // 3: 연한 주황
+        Color(0xFFF8BBD0), // 4: 연한 분홍
+        Color(0xFF1E88E5), // 5: 짙은 파랑
+        Color(0xFF43A047), // 6: 짙은 초록
+        Color(0xFFFB8C00), // 7: 짙은 주황
+        Color(0xFFE53935), // 8: 짙은 자주
+        Color(0xFF6D4C41)  // 9: 짙은 갈색
     )
 
     fun init(context: Context) {
@@ -341,10 +347,21 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
             // 주문 내역 영역 (왼쪽)
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
-                        Icon(Icons.Default.Home, contentDescription = "메인으로", tint = MaterialTheme.colorScheme.primary)
+                    IconButton(
+                        onClick = { navController.navigate("main") { popUpTo(0) } },
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Home, 
+                            contentDescription = "메인으로", 
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
                 }
                 
@@ -406,10 +423,21 @@ fun OrderScreen(tableId: Int, navController: androidx.navigation.NavController) 
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
-                    Icon(Icons.Default.Home, contentDescription = "메인으로", tint = MaterialTheme.colorScheme.primary)
+                IconButton(
+                    onClick = { navController.navigate("main") { popUpTo(0) } },
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Home, 
+                        contentDescription = "메인으로", 
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Text("테이블 $tableId 주문 내역", style = MaterialTheme.typography.headlineSmall)
             }
             
@@ -646,23 +674,33 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
     val numFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 정산 화면 상단 타이틀 및 홈버튼 (가로/세로 모두 적용)
+        // 정산 화면 상단 타이틀 및 홈버튼
         Row(
             modifier = Modifier.fillMaxWidth(), 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
-            IconButton(onClick = { navController.navigate("main") { popUpTo(0) } }) {
-                Icon(Icons.Default.Home, contentDescription = "메인으로", tint = MaterialTheme.colorScheme.primary)
+            IconButton(
+                onClick = { navController.navigate("main") { popUpTo(0) } },
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Home, 
+                    contentDescription = "메인으로", 
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             }
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Text("정산 내역", style = MaterialTheme.typography.headlineLarge)
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
         if (isLandscape) {
-            // 💡 가로모드: 왼쪽은 주문 품목 리스트, 우측 가운데는 합계 및 버튼 고정
             Row(modifier = Modifier.fillMaxSize()) {
                 Card(
                     modifier = Modifier.weight(1.2f).fillMaxHeight().padding(end = 16.dp),
@@ -676,7 +714,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                     }
                 }
 
-                // 우측 가운데 고정 영역 (합계 + 취소/지급완료 버튼)
                 Column(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     verticalArrangement = Arrangement.Center,
@@ -688,7 +725,6 @@ fun CheckoutScreen(tableId: Int, navController: androidx.navigation.NavControlle
                 }
             }
         } else {
-            // 세로모드 기존 레이아웃 유지
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(table.orders) { order ->
                     CheckoutItemRow(order, numFormat)
@@ -1005,7 +1041,13 @@ fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
     var tempTableColor by remember { mutableStateOf(SettingsManager.tableColorIndex) }
     var tempMenuColor by remember { mutableStateOf(SettingsManager.menuColorIndex) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    // 💡 화면 전체에 수직 스크롤(.verticalScroll) 적용! 이제 화면 밖으로 넘어가도 스크롤하여 내릴 수 있습니다.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Default.ArrowBack, "뒤로가기") }
             Text("시스템 설정", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
@@ -1068,20 +1110,25 @@ fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
                 
                 Text("메인 화면 테이블 카드 색상", style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SettingsManager.recommendedColors.forEachIndexed { index, color ->
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .border(
-                                    width = if (tempTableColor == index) 3.dp else 1.dp, 
-                                    color = if (tempTableColor == index) MaterialTheme.colorScheme.primary else Color.LightGray, 
-                                    shape = CircleShape
-                                )
-                                .clickable { tempTableColor = index }
-                        )
+                
+                // 💡 10개의 색상을 한 줄에 우겨넣지 않고, 5개씩 2줄로 쪼개어 배치
+                SettingsManager.recommendedColors.chunked(5).forEach { rowColors ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        rowColors.forEach { color ->
+                            val index = SettingsManager.recommendedColors.indexOf(color)
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        width = if (tempTableColor == index) 3.dp else 1.dp, 
+                                        color = if (tempTableColor == index) MaterialTheme.colorScheme.primary else Color.LightGray, 
+                                        shape = CircleShape
+                                    )
+                                    .clickable { tempTableColor = index }
+                            )
+                        }
                     }
                 }
                 
@@ -1089,24 +1136,30 @@ fun SystemSettingsScreen(navController: androidx.navigation.NavController) {
                 
                 Text("주문 화면 메뉴 버튼 색상", style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SettingsManager.recommendedColors.forEachIndexed { index, color ->
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .border(
-                                    width = if (tempMenuColor == index) 3.dp else 1.dp, 
-                                    color = if (tempMenuColor == index) MaterialTheme.colorScheme.primary else Color.LightGray, 
-                                    shape = CircleShape
-                                )
-                                .clickable { tempMenuColor = index }
-                        )
+                
+                // 💡 메뉴 버튼 색상도 동일하게 5개씩 2줄 배치
+                SettingsManager.recommendedColors.chunked(5).forEach { rowColors ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        rowColors.forEach { color ->
+                            val index = SettingsManager.recommendedColors.indexOf(color)
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        width = if (tempMenuColor == index) 3.dp else 1.dp, 
+                                        color = if (tempMenuColor == index) MaterialTheme.colorScheme.primary else Color.LightGray, 
+                                        shape = CircleShape
+                                    )
+                                    .clickable { tempMenuColor = index }
+                            )
+                        }
                     }
                 }
             }
         }
+        Spacer(modifier = Modifier.height(32.dp)) // 맨 아래 여백 추가
     }
 }
 
